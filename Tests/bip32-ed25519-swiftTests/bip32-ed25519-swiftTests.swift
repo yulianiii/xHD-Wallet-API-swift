@@ -18,6 +18,11 @@
 import XCTest
 @testable import bip32_ed25519_swift
 import MnemonicSwift
+import MessagePack
+
+enum MyError: Error {
+    case expectedError
+}
 
 final class Bip32Ed25519Tests: XCTestCase {
     var c: Bip32Ed25519?
@@ -30,8 +35,38 @@ final class Bip32Ed25519Tests: XCTestCase {
         }
     }
 
-    func testInitializationWithSeed() throws {
-        XCTAssertNotNil(c)
+    func testInitializationWithSeeds() throws {
+        // Warning: never use these phrases!
+        let seeds = [
+            "bullet safe club entry raise radio boil tool among column boring giant rack panel minor gown pair hard pulse nice shy attract torch fun",
+            "rapid guide picture cereal satoshi napkin affair task search enjoy kangaroo tube bridge learn churn tongue misery hotel race mandate verify multiply tower other",
+            "thing brand only clap title duty vacuum picnic first basket brand tail tape give alarm brick inhale beauty banner text wasp judge wait borrow",
+            "suffer rhythm sure sugar slice dynamic service trim bulb fence tube make smile table rally noodle crop subway industry club rely section idle frame",
+            "valley fee chase mirror celery mom carpet fuel clown crisp interest town mosquito lamp please black giggle beach always fruit win tribe often bright",
+            "fish increase monitor cruise deer start angle custom hand dwarf erode expose ancient fix surprise garment ecology bone soccer meadow build eye jelly legend",
+            "ill catch planet summer blue clump stem rail express giraffe focus squirrel season behind field gentle online daughter select man parent castle awesome orchard",
+            "gorilla piano secret fashion birth despair dumb gloom paddle tissue start demand primary robust enemy upset give neutral snap extend stereo task shoot load",
+            "there reflect turkey language tragic hint destroy salt stamp party weasel pudding tent couch purse grace modify mansion among spell lamp beef trip uncover",
+            "truth stand beyond payment october fury frame common advice bamboo casino panda nation valve siren kind inherit patch pair measure wage beauty forward rare",
+            "suffer office prosper base subway arena avoid hamster betray animal angry method scare polar hunt lumber economy barely ticket coast ladder wheel acid trouble",
+            "allow coast mandate galaxy setup fire beach pulse learn garbage good intact citizen mixture whip shrug shy rescue gown few hold today system galaxy",
+            "law favorite talent thunder enroll muffin access else chef wedding wait rice squirrel logic surge rice social dove syrup jacket fitness embark able believe",
+            "label enough energy reject weather post supply frown pattern super wrist sentence simple fetch capable burger lift pumpkin zone quit design anger supreme unveil",
+            "offer program own fog cream echo scene marine enforce jacket supreme digital bread crowd captain poverty clerk because piano fortune shaft way library spawn",
+            "crash subway naive party tower worth unique about soap conduct zone soon absurd notice air ride sail hurt regret embark father lock license gym",
+            "brand mechanic access negative recall keen pepper popular century ten vessel tide napkin anchor option unit culture poet force theory tunnel boil foster solve",
+            "hotel park shrug economy group holiday merit thank plunge protect lemon test kit report pig roof gasp weekend parade labor candy praise lawsuit human",
+            "embrace acoustic define work teach bitter kiss mouse lamp melody mobile gasp sleep jazz kite next parrot trigger limb eye push oppose shiver certain",
+            "duty rice trust section few more seven course sister curve destroy common list dad whip enhance empty asthma icon grace logic remove cherry black",
+            "deny aunt maple dream humor lucky cluster beauty world fat age shock note list because decorate frown saddle buddy village heavy air win liquid",
+            ]
+
+        for seed in seeds {
+            let seed = try Mnemonic.deterministicSeedString(from: seed)
+            XCTAssertNotNil(Bip32Ed25519(seed: seed))
+        }
+
+        XCTAssertNil(Bip32Ed25519(seed: "invalid hex seed"))
     }
 
     func testHarden() throws {
@@ -162,6 +197,304 @@ final class Bip32Ed25519Tests: XCTestCase {
         XCTAssertEqual(try TestUtils.encodeAddress(bytes: pk), "ML7IGK322ECUJPUDG6THAQ26KBSK4STG4555PCIJOZNUNNLWU3Z3ZFXITA")
     }
 
+    func testValidateDataAuthRequest() throws {
+        let schema = try Schema(filePath: "Tests/bip32-ed25519-swiftTests/schemas/auth.request.json")
+
+        let challengeJSON = ["""
+        {
+            "0": 28, "1": 103, "2": 26, "3": 222, "4": 7, "5": 86, "6": 55, "7": 95, 
+            "8": 197, "9": 179, "10": 249, "11": 252, "12": 232, "13": 252, "14": 176,
+            "15": 39, "16": 112, "17": 131, "18": 52, "19": 63, "20": 212, "21": 58,
+            "22": 226, "23": 89, "24": 64, "25": 94, "26": 23, "27": 91, "28": 128,
+            "29": 143, "30": 123, "31": 27
+        }
+        """,
+        "eyIwIjogMjgsICIxIjogMTAzLCAiMiI6IDI2LCAiMyI6IDIyMiwgIjQiOiA3LCAiNSI6IDg2LCAiNiI6IDU1LCAiNyI6IDk1LCAiOCI6IDE5NywgIjkiOiAxNzksICIxMCI6IDI0OSwgIjExIjogMjUyLCAiMTIiOiAyMzIsICIxMyI6IDI1MiwgIjE0IjogMTc2LCAiMTUiOiAzOSwgIjE2IjogMTEyLCAiMTciOiAxMzEsICIxOCI6IDUyLCAiMTkiOiA2MywgIjIwIjogMjEyLCAiMjEiOiA1OCwiMjIiOiAyMjYsICIyMyI6IDg5LCAiMjQiOiA2NCwgIjI1IjogOTQsICIyNiI6IDIzLCAiMjciOiA5MSwgIjI4IjogMTI4LCAiMjkiOiAxNDMsICIzMCI6IDEyMywgIjMxIjogMjd9",
+        "de0020a1301ca13167a1321aa133ccdea13407a13556a13637a1375fa138ccc5a139ccb3a23130ccf9a23131ccfca23132cce8a23133ccfca23134ccb0a2313527a2313670a23137cc83a2313834a231393fa23230ccd4a232313aa23232cce2a2323359a2323440a232355ea2323617a232375ba23238cc80a23239cc8fa233307ba233311b",
+        ]
+
+        let result = try c?.validateData(data: Data(challengeJSON[0].utf8), metadata: SignMetadata(encoding: Encoding.none, schema: schema))
+        XCTAssert(result!)
+
+        let resultB64 = try c?.validateData(data: Data(challengeJSON[1].utf8), metadata: SignMetadata(encoding: Encoding.base64, schema: schema))
+        XCTAssert(resultB64!)
+
+        let resultMsgP = try c?.validateData(data: Data(hexString: String(challengeJSON[2].utf8))!,metadata: SignMetadata(encoding: Encoding.msgpack, schema: schema))
+        XCTAssert(resultMsgP!)
+
+        let challengeJSONBad = [
+            [
+            """
+            {
+                "0": 28, "1": 103, "2": 26, "3": 222, "4": 7, "5": 86, "6": 55, "7": 95, 
+                "8": 197, "9": 179, "10": 249, "11": 252, "12": 232, "13": 252, "14": 176,
+                "15": 39, "16": 112, "17": 131, "18": 52, "19": 63, "20": 212, "21": 58,
+                "22": 226, "23": 89, "24": 64, "25": 94, "26": 23, "27": 91, "28": 128,
+                "29": 143, "30": 123, "30": 27
+            }
+            """,
+            "eyIwIjogMjgsICIxIjogMTAzLCAiMiI6IDI2LCAiMyI6IDIyMiwgIjQiOiA3LCAiNSI6IDg2LCAiNiI6IDU1LCAiNyI6IDk1LCAiOCI6IDE5NywgIjkiOiAxNzksICIxMCI6IDI0OSwgIjExIjogMjUyLCAiMTIiOiAyMzIsICIxMyI6IDI1MiwgIjE0IjogMTc2LCAiMTUiOiAzOSwgIjE2IjogMTEyLCAiMTciOiAxMzEsICIxOCI6IDUyLCAiMTkiOiA2MywgIjIwIjogMjEyLCAiMjEiOiA1OCwgIjIyIjogMjI2LCAiMjMiOiA4OSwgIjI0IjogNjQsICIyNSI6IDk0LCAiMjYiOiAyMywgIjI3IjogOTEsICIyOCI6IDEyOCwgIjI5IjogMTQzLCAiMzAiOiAxMjMsICIzMCI6IDI3fQ==",
+            "de001fa1301ca13167a1321aa133ccdea13407a13556a13637a1375fa138ccc5a139ccb3a23130ccf9a23131ccfca23132cce8a23133ccfca23134ccb0a2313527a2313670a23137cc83a2313834a231393fa23230ccd4a232313aa23232cce2a2323359a2323440a232355ea2323617a232375ba23238cc80a23239cc8fa233301b",
+            ],
+            [
+                    """
+            {
+                "0": 28, "1": 103, "2": 26, "3": 222, "4": 7, "5": 86, "6": 55, "7": 95, 
+                "8": 197, "9": 179, "10": 249, "11": 252, "12": 232, "13": 252, "14": 176,
+                "15": 39, "16": 112, "17": 131, "18": 52, "19": 63, "20": 212, "21": 58,
+                "22": 226, "23": 89, "24": 64, "25": 94, "26": 23, "27": 91, "28": 128,
+                "29": 143, "30": 123, "31": 999
+            }
+            """,
+            "eyIwIjogMjgsICIxIjogMTAzLCAiMiI6IDI2LCAiMyI6IDIyMiwgIjQiOiA3LCAiNSI6IDg2LCAiNiI6IDU1LCAiNyI6IDk1LCAiOCI6IDE5NywgIjkiOiAxNzksICIxMCI6IDI0OSwgIjExIjogMjUyLCAiMTIiOiAyMzIsICIxMyI6IDI1MiwgIjE0IjogMTc2LCAiMTUiOiAzOSwgIjE2IjogMTEyLCAiMTciOiAxMzEsICIxOCI6IDUyLCAiMTkiOiA2MywgIjIwIjogMjEyLCAiMjEiOiA1OCwgIjIyIjogMjI2LCAiMjMiOiA4OSwgIjI0IjogNjQsICIyNSI6IDk0LCAiMjYiOiAyMywgIjI3IjogOTEsICIyOCI6IDEyOCwgIjI5IjogMTQzLCAiMzAiOiAxMjMsICIzMSI6IDk5OX0",
+            "de0020a1301ca13167a1321aa133ccdea13407a13556a13637a1375fa138ccc5a139ccb3a23130ccf9a23131ccfca23132cce8a23133ccfca23134ccb0a2313527a2313670a23137cc83a2313834a231393fa23230ccd4a232313aa23232cce2a2323359a2323440a232355ea2323617a232375ba23238cc80a23239cc8fa233307ba23331cd03e7",
+            ],
+            ["""
+            {
+                "0": 28, "1": 103, "2": 26, "3": 222, "4": 7, "5": 86, "6": 55, "7": 95, 
+                "8": 197, "9": 179, "10": 249, "11": 252, "12": 232, "13": 252, "14": 176,
+                "15": 39, "16": 112, "17": 131, "18": 52, "19": 63, "20": 212, "21": 58,
+                "22": 226, "23": 89, "24": 64, "25": 94, "26": 23, "27": 91, "28": 128,
+                "29": 143, "30": 123, "31": 27, "32": 10
+            }
+            """,
+            "eyIwIjogMjgsICIxIjogMTAzLCAiMiI6IDI2LCAiMyI6IDIyMiwgIjQiOiA3LCAiNSI6IDg2LCAiNiI6IDU1LCAiNyI6IDk1LCAiOCI6IDE5NywgIjkiOiAxNzksICIxMCI6IDI0OSwgIjExIjogMjUyLCAiMTIiOiAyMzIsICIxMyI6IDI1MiwgIjE0IjogMTc2LCAiMTUiOiAzOSwgIjE2IjogMTEyLCAiMTciOiAxMzEsICIxOCI6IDUyLCAiMTkiOiA2MywgIjIwIjogMjEyLCAiMjEiOiA1OCwgIjIyIjogMjI2LCAiMjMiOiA4OSwgIjI0IjogNjQsICIyNSI6IDk0LCAiMjYiOiAyMywgIjI3IjogOTEsICIyOCI6IDEyOCwgIjI5IjogMTQzLCAiMzAiOiAxMjMsICIzMSI6IDI3LCAiMzIiOiAxMH0",
+            "de0021a1301ca13167a1321aa133ccdea13407a13556a13637a1375fa138ccc5a139ccb3a23130ccf9a23131ccfca23132cce8a23133ccfca23134ccb0a2313527a2313670a23137cc83a2313834a231393fa23230ccd4a232313aa23232cce2a2323359a2323440a232355ea2323617a232375ba23238cc80a23239cc8fa233307ba233311ba233320a",
+            ],
+            ["""
+            {
+                "0": 28, "1": 103, "2": 26, "3": 222, "4": 7, "5": 86, "6": 55, "7": 95, 
+                "8": 197, "9": 179, "10": 249, "11": 252, "12": 232, "13": 252, "14": 176,
+                "15": 39, "16": 112, "17": 131, "18": 52, "19": 63, "20": 212, "21": 58,
+                "22": 226, "23": 89, "24": 64, "25": 94, "26": 23, "27": 91, "28": 128,
+                "29": 143, "30": 123, "test": 27
+            }
+            """,
+            "eyIwIjogMjgsICIxIjogMTAzLCAiMiI6IDI2LCAiMyI6IDIyMiwgIjQiOiA3LCAiNSI6IDg2LCAiNiI6IDU1LCAiNyI6IDk1LCAiOCI6IDE5NywgIjkiOiAxNzksICIxMCI6IDI0OSwgIjExIjogMjUyLCAiMTIiOiAyMzIsICIxMyI6IDI1MiwgIjE0IjogMTc2LCAiMTUiOiAzOSwgIjE2IjogMTEyLCAiMTciOiAxMzEsICIxOCI6IDUyLCAiMTkiOiA2MywgIjIwIjogMjEyLCAiMjEiOiA1OCwgIjIyIjogMjI2LCAiMjMiOiA4OSwgIjI0IjogNjQsICIyNSI6IDk0LCAiMjYiOiAyMywgIjI3IjogOTEsICIyOCI6IDEyOCwgIjI5IjogMTQzLCAiMzAiOiAxMjMsICJ0ZXN0IjogMjd9",
+            "de0020a1301ca13167a1321aa133ccdea13407a13556a13637a1375fa138ccc5a139ccb3a23130ccf9a23131ccfca23132cce8a23133ccfca23134ccb0a2313527a2313670a23137cc83a2313834a231393fa23230ccd4a232313aa23232cce2a2323359a2323440a232355ea2323617a232375ba23238cc80a23239cc8fa233307ba4746573741b",
+            ],
+            ["""
+            {
+                "0": 28, "1": 103, "2": 26, "3": 222, "4": 7, "5": 86, "6": 55, "7": 95, 
+                "8": 197, "9": 179, "10": 249, "11": 252, "12": 232, "13": 252, "14": 176,
+                "15": 39, "16": 112, "17": 131, "18": 52, "19": 63, "20": 212, "21": 58,
+                "22": 226, "23": 89, "24": 64, "25": 94, "26": 23, "27": 91, "28": 128,
+                "29": 143, "30": 123, "31": a
+            }
+            """,
+            "eyIwIjogMjgsICIxIjogMTAzLCAiMiI6IDI2LCAiMyI6IDIyMiwgIjQiOiA3LCAiNSI6IDg2LCAiNiI6IDU1LCAiNyI6IDk1LCAiOCI6IDE5NywgIjkiOiAxNzksICIxMCI6IDI0OSwgIjExIjogMjUyLCAiMTIiOiAyMzIsICIxMyI6IDI1MiwgIjE0IjogMTc2LCAiMTUiOiAzOSwgIjE2IjogMTEyLCAiMTciOiAxMzEsICIxOCI6IDUyLCAiMTkiOiA2MywgIjIwIjogMjEyLCAiMjEiOiA1OCwgIjIyIjogMjI2LCAiMjMiOiA4OSwgIjI0IjogNjQsICIyNSI6IDk0LCAiMjYiOiAyMywgIjI3IjogOTEsICIyOCI6IDEyOCwgIjI5IjogMTQzLCAiMzAiOiAxMjMsICIzMSI6IGF9",
+            "a", // msgpack convertes cannot parse the bad JSON into msgpack
+            ],
+        ]
+
+        for challenge in challengeJSONBad {
+            let resultFail = try c?.validateData(data: Data(challenge[0].utf8), metadata: SignMetadata(encoding: Encoding.none, schema: schema))
+            XCTAssert(!resultFail!)
+
+            let resultB64Fail = try c?.validateData(data: Data(challenge[1].utf8), metadata: SignMetadata(encoding: Encoding.base64, schema: schema))
+            XCTAssert(!resultB64Fail!)
+
+            let resultMsgP = try c?.validateData(data: Data(hexString: String(challenge[2].utf8))!,metadata: SignMetadata(encoding: Encoding.msgpack, schema: schema))
+            XCTAssert(!resultMsgP!)
+        }
+    }
+
+    func testValidateDataMsgSchema() throws {
+        let schema = try Schema(filePath: "Tests/bip32-ed25519-swiftTests/schemas/msg.schema.json")
+
+        let msgJSON = 
+        ["""
+        {"text":"Hello, World!"}
+        """,
+        "eyJ0ZXh0IjoiSGVsbG8sIFdvcmxkISJ9", // base64
+        "81a474657874ad48656c6c6f2c20576f726c6421", // msgpack
+        ]
+
+        let result = try c?.validateData(data: Data(msgJSON[0].utf8), metadata: SignMetadata(encoding: Encoding.none, schema: schema))
+        XCTAssert(result!)
+
+        let resultB64 = try c?.validateData(data: Data(msgJSON[1].utf8), metadata: SignMetadata(encoding: Encoding.base64, schema: schema))
+        XCTAssert(resultB64!)
+
+        let resultMsgP = try c?.validateData(data: Data(hexString: String(msgJSON[2].utf8))!,metadata: SignMetadata(encoding: Encoding.msgpack, schema: schema))
+        XCTAssert(resultMsgP!)
+
+        let msgJSONBad = [ // none, base64, msgpack
+        ["""
+        {"t":"Hello, World!"}
+        """,
+        "eyJ0IjoiSGVsbG8sIFdvcmxkISJ9",
+        "81a174ad48656c6c6f2c20576f726c6421",
+        ],
+        ["""
+        {"text":1}
+        """,
+        "eyJ0ZXh0IjoxfQ==",
+        "81a47465787401",
+        ],
+        ["""
+        {a:"Hello World"}
+        """,
+        "e2E6IkhlbGxvIFdvcmxkIn0",
+        "a", // msgpack convertes cannot parse the bad JSON into msgpack
+        ],
+        ]
+
+        for msg in msgJSONBad {
+            let result = try c?.validateData(data: Data(msg[0].utf8), metadata: SignMetadata(encoding: Encoding.none, schema: schema))
+            XCTAssert(!result!)
+
+            let resultB64 = try c?.validateData(data: Data(msg[1].utf8), metadata: SignMetadata(encoding: Encoding.base64, schema: schema))
+            XCTAssert(!resultB64!)
+
+            let resultMsgP = try c?.validateData(data: Data(hexString: String(msg[2].utf8))!,metadata: SignMetadata(encoding: Encoding.msgpack, schema: schema))
+            XCTAssert(!resultMsgP!)
+        }
+    
+    }
+
+    func testMsgPackToSwift() throws {
+        let nilValue: MessagePackValue = .nil
+        XCTAssertTrue(c?.messagePackValueToSwift(nilValue) is NSNull)
+
+        let boolValue: MessagePackValue = .bool(true)
+        XCTAssertEqual(c?.messagePackValueToSwift(boolValue) as? Bool, true)
+
+        let intValue: MessagePackValue = .int(-42)
+        XCTAssertEqual(c?.messagePackValueToSwift(intValue) as? Int64, -42)
+
+        let uintValue: MessagePackValue = .uint(42)
+        XCTAssertEqual(c?.messagePackValueToSwift(uintValue) as? UInt64, 42)
+
+        let floatValue: MessagePackValue = .float(42.0)
+        XCTAssertEqual(c?.messagePackValueToSwift(floatValue) as? Float, 42.0)
+
+        let doubleValue: MessagePackValue = .double(42.0)
+        XCTAssertEqual(c?.messagePackValueToSwift(doubleValue) as? Double, 42.0)
+
+        let strValue: MessagePackValue = .string("Hello")
+        XCTAssertEqual(c?.messagePackValueToSwift(strValue) as? String, "Hello")
+
+        let binaryValue: MessagePackValue = .binary(Data([1, 2, 3]))
+        XCTAssertEqual(c?.messagePackValueToSwift(binaryValue) as? Data, Data([1, 2, 3]))
+
+        let arrayValue: MessagePackValue = .array([.int(1), .int(2), .int(3)])
+        XCTAssertEqual(c?.messagePackValueToSwift(arrayValue) as? [Int64], [1, 2, 3])
+
+        let mapValue: MessagePackValue = .map(["key": .string("value")])
+        XCTAssertEqual(c?.messagePackValueToSwift(mapValue) as? [String: String], ["key": "value"])
+
+        let extendedValue: MessagePackValue = .extended(42, Data([1, 2, 3]))
+        let expected: [String: Any] = ["type": 42, "data": Data([1, 2, 3])]
+        let produced = c?.messagePackValueToSwift(extendedValue) as? [String: Any]
+        XCTAssertEqual(produced?["type"] as? Int64, expected["type"] as? Int64)
+        XCTAssertEqual(produced?["data"] as? Data, expected["data"] as? Data)
+    }
+
+    func testPrefixError() throws {
+        // Algorand transaction bytes
+        let txBytes = Data([84, 88, 138, 163, 97, 109, 116, 206, 0, 152, 150, 128, 163, 102, 101, 101, 205, 3, 232, 162, 102, 118, 1, 163, 103, 101, 110, 172, 100, 111, 99, 107, 101, 114, 110, 101, 116, 45, 118, 49, 162, 103, 104, 196, 32, 241, 58, 20, 104, 56, 57, 150, 147, 27, 180, 33, 136, 150, 19, 75, 8, 122, 48, 230, 57, 166, 3, 22, 66, 230, 213, 105, 153, 155, 59, 116, 186, 162, 108, 118, 205, 3, 233, 164, 110, 111, 116, 101, 196, 17, 116, 101, 115, 116, 32, 116, 114, 97, 110, 115, 97, 99, 116, 105, 111, 110, 33, 163, 114, 99, 118, 196, 32, 5, 203, 108, 214, 116, 145, 109, 203, 70, 233, 152, 142, 138, 129, 38, 88, 243, 206, 29, 133, 166, 17, 142, 91, 181, 120, 56, 133, 132, 103, 116, 129, 163, 115, 110, 100, 196, 32, 71, 235, 237, 176, 141, 136, 126, 190, 43, 187, 124, 13, 136, 150, 5, 71, 243, 107, 143, 109, 238, 238, 131, 63, 179, 59, 91, 63, 6, 64, 197, 130, 164, 116, 121, 112, 101, 163, 112, 97, 121])
+        XCTAssert(c?.hasAlgorandTags(data: txBytes) == true)
+
+        let hasPrefixedResult = try c?.validateData(data: txBytes, metadata: SignMetadata(encoding: Encoding.base64, schema: Schema(filePath: "Tests/bip32-ed25519-swiftTests/schemas/auth.request.json")))
+        XCTAssert(hasPrefixedResult == false)
+
+        // Contain illegal prefix
+        let msgsDoesHave = 
+        ["""
+        TX
+        {"text":"Hello, World!"}
+        """,
+        "VFiJo2FtdM0D6KNmZWXNA+iiZnbOAkeSd6NnZW6sdGVzdG5ldC12MS4womdoxCBIY7UYpLPITsgQ8i1PEIHLD3HwWaesIN7GL39w5Qk6IqJsds4CR5Zfo3JjdsQgYv6DK3rRBUS+gzemcENeUGSuSmbne9eJCXZbRrV2pvOjc25kxCBi/oMretEFRL6DN6ZwQ15QZK5KZud714kJdltGtXam86R0eXBlo3BheQ==", // base64
+        ]
+
+        let resultMX = c?.hasAlgorandTags(data: Data((msgsDoesHave[0]).utf8))
+        XCTAssert(resultMX!)
+
+        let resultMXB64 = c?.hasAlgorandTags(data: Data(base64Encoded: msgsDoesHave[1])!)
+        XCTAssert(resultMXB64!)
+
+        let resultMXMsgP = c?.hasAlgorandTags(data: Data("TX".utf8) + Data(hexString: String("81a474657874ad48656c6c6f2c20576f726c6421".utf8))!)
+        XCTAssert(resultMXMsgP!)
+
+        // prepend "appID" in hexadecimal
+        let resultMXMsgP2 = c?.hasAlgorandTags(data: Data(hexString: String("6170704944".utf8) + String("81a474657874ad48656c6c6f2c20576f726c6421".utf8))!)
+        XCTAssert(resultMXMsgP2!)
+
+        // Does not contain illegal prefix
+        let msgsDoesNotHave = 
+        ["""
+        {"text":"Hello, World!"}
+        """,
+        "eyJ0ZXh0IjoiSGVsbG8sIFdvcmxkISJ9", // base64
+        ]
+
+
+        let resultMXf = c?.hasAlgorandTags(data: Data((msgsDoesNotHave[0]).utf8))
+        XCTAssertFalse(resultMXf!)
+
+        let resultMXB64f = c?.hasAlgorandTags(data: Data(base64Encoded: msgsDoesNotHave[1])!)
+        XCTAssertFalse(resultMXB64f!)
+
+        let resultMXMsgPf = c?.hasAlgorandTags(data: Data(hexString: String("81a474657874ad48656c6c6f2c20576f726c6421".utf8))!)
+        XCTAssertFalse(resultMXMsgPf!)
+        
+
+    }
+
+    func testAuthReqSigning() throws {
+        let schema = try Schema(filePath: "Tests/bip32-ed25519-swiftTests/schemas/auth.request.json")
+
+        let challengeJSON = ["""
+        {
+            "0": 28, "1": 103, "2": 26, "3": 222, "4": 7, "5": 86, "6": 55, "7": 95, 
+            "8": 197, "9": 179, "10": 249, "11": 252, "12": 232, "13": 252, "14": 176,
+            "15": 39, "16": 112, "17": 131, "18": 52, "19": 63, "20": 212, "21": 58,
+            "22": 226, "23": 89, "24": 64, "25": 94, "26": 23, "27": 91, "28": 128,
+            "29": 143, "30": 123, "31": 27
+        }
+        """,
+        "eyIwIjogMjgsICIxIjogMTAzLCAiMiI6IDI2LCAiMyI6IDIyMiwgIjQiOiA3LCAiNSI6IDg2LCAiNiI6IDU1LCAiNyI6IDk1LCAiOCI6IDE5NywgIjkiOiAxNzksICIxMCI6IDI0OSwgIjExIjogMjUyLCAiMTIiOiAyMzIsICIxMyI6IDI1MiwgIjE0IjogMTc2LCAiMTUiOiAzOSwgIjE2IjogMTEyLCAiMTciOiAxMzEsICIxOCI6IDUyLCAiMTkiOiA2MywgIjIwIjogMjEyLCAiMjEiOiA1OCwiMjIiOiAyMjYsICIyMyI6IDg5LCAiMjQiOiA2NCwgIjI1IjogOTQsICIyNiI6IDIzLCAiMjciOiA5MSwgIjI4IjogMTI4LCAiMjkiOiAxNDMsICIzMCI6IDEyMywgIjMxIjogMjd9",
+        "de0020a1301ca13167a1321aa133ccdea13407a13556a13637a1375fa138ccc5a139ccb3a23130ccf9a23131ccfca23132cce8a23133ccfca23134ccb0a2313527a2313670a23137cc83a2313834a231393fa23230ccd4a232313aa23232cce2a2323359a2323440a232355ea2323617a232375ba23238cc80a23239cc8fa233307ba233311b",
+        ]
+
+        let pubkey = c?.keyGen(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0)
+
+        let sig = try c?.signData(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, data: Data(challengeJSON[0].utf8), metadata: SignMetadata(encoding: Encoding.none, schema: schema))
+        let result = c?.verifyWithPublicKey(signature: sig!, message: Data(challengeJSON[0].utf8), publicKey: pubkey!)
+        XCTAssert(result!)
+
+        let sigB64 = try c?.signData(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, data: Data(challengeJSON[1].utf8), metadata: SignMetadata(encoding: Encoding.base64, schema: schema))
+        let resultB64 = c?.verifyWithPublicKey(signature: sigB64!, message: Data(challengeJSON[1].utf8), publicKey: pubkey!)
+        XCTAssert(resultB64!)
+
+        let sigMsgP = try c?.signData(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, data: Data(hexString: String(challengeJSON[2].utf8))!, metadata: SignMetadata(encoding: Encoding.msgpack, schema: schema))
+        let resultMsgP = c?.verifyWithPublicKey(signature: sigMsgP!, message: Data(hexString: String(challengeJSON[2].utf8))!, publicKey: pubkey!)
+        XCTAssert(resultMsgP!)
+
+        // Check that the signatures are different
+        XCTAssert(sig != sigB64)
+        XCTAssert(sig != sigMsgP)
+        XCTAssert(sigB64 != sigMsgP)
+
+        // Incorrect data and encoding
+        do {
+            let _ = try c?.signData(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, data: Data(challengeJSON[0].utf8), metadata: SignMetadata(encoding: Encoding.base64, schema: schema))
+            throw MyError.expectedError
+        } catch {
+                XCTAssert(true)
+        }
+    }
+
+    func testSchema() throws{
+        // Should successfully load
+        _ = try Schema(filePath: String("Tests/bip32-ed25519-swiftTests/schemas/auth.request.json"))
+        _ = try Schema(filePath: String("Tests/bip32-ed25519-swiftTests/schemas/msg.schema.json"))
+
+        // Malformed schema
+        XCTAssertThrowsError(try Schema(filePath: String("Tests/bip32-ed25519-swiftTests/schemas/malformed.json")))
+    }
+
     func testECDH() throws {
         let aliceSeed = try Mnemonic.deterministicSeedString(from: "exact remain north lesson program series excess lava material second riot error boss planet brick rotate scrap army riot banner adult fashion casino bamboo")
         let alice = Bip32Ed25519(seed: aliceSeed)
@@ -204,5 +537,24 @@ final class Bip32Ed25519Tests: XCTestCase {
 
         let cleartext = TestUtils.cryptoSecretBoxOpenEasy(ciphertext: ciphertext, nonce: nonce, symmetricKey: aliceSharedSecret!)
         XCTAssertEqual(cleartext, message)
+    }
+}
+
+class DataExtensionTests: XCTestCase {
+    func testHexStringInit() {
+        // Test with valid hex string
+        let hexString = "48656c6c6f" // "Hello" in ASCII
+        let data = Data(hexString: hexString)
+        XCTAssertEqual(data, "Hello".data(using: .utf8))
+
+        // Test with invalid hex string
+        let invalidHexString = "GGGG"
+        let invalidData = Data(hexString: invalidHexString)
+        XCTAssertNil(invalidData)
+
+        // Test with empty string
+        let emptyString = ""
+        let emptyData = Data(hexString: emptyString)
+        XCTAssertEqual(emptyData, Data())
     }
 }

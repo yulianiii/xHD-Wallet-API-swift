@@ -20,17 +20,42 @@ import Clibsodium
 import Foundation
 import BigInt
 import Foundation
+import JSONSchema
+import MessagePack
 
 public enum KeyContext: UInt32 {
     case Address = 0
     case Identity = 1
 }
 
-enum Encoding {
+public enum Encoding {
     // case cbor
     case msgpack
     case base64
     case none
+}
+
+class DataValidationException: Error {
+    var message: String
+    init(message: String) {
+        self.message = message
+    }
+}
+
+public struct Schema {
+    var jsonSchema: [String: Any]
+
+    init(filePath: String) throws {
+        let url = URL(fileURLWithPath: filePath)
+        let data = try Data(contentsOf: url)
+        let jsonSchema = try JSONSerialization.jsonObject(with: data, options: []) as! [String: Any]
+        self.jsonSchema = jsonSchema
+    }
+}
+
+public struct SignMetadata {
+    var encoding: Encoding
+    var schema: Schema
 }
 
 extension Data {
@@ -57,11 +82,6 @@ let ED25519_SCALAR_SIZE = 32
 public class Bip32Ed25519 {
 
     private var seed: Data
-
-    // Overloaded initializer that accepts a seed
-    public init?(seed: Data) {
-        self.seed = seed
-    }
 
     public init?(seed: String) {
         guard let data = Data(hexString: seed) else {
@@ -145,7 +165,7 @@ public class Bip32Ed25519 {
         return (z, childChainCode)
     }
 
-func deriveChildNodePrivate(extendedKey: Data, index: UInt32) -> Data {
+    func deriveChildNodePrivate(extendedKey: Data, index: UInt32) -> Data {
         let kl = extendedKey.subdata(in: 0..<ED25519_SCALAR_SIZE)
         let kr = extendedKey.subdata(in: ED25519_SCALAR_SIZE..<2*ED25519_SCALAR_SIZE)
         let cc = extendedKey.subdata(in: 2*ED25519_SCALAR_SIZE..<3*ED25519_SCALAR_SIZE)
@@ -245,6 +265,92 @@ func deriveChildNodePrivate(extendedKey: Data, index: UInt32) -> Data {
     public func verifyWithPublicKey(signature: Data, message: Data, publicKey: Data) -> Bool {
         return SodiumHelper.cryptoSignVerifyDetached(signature, message,publicKey)
     }
+
+    func hasAlgorandTags(data: Data) -> Bool {
+        // Prefixes taken from go-algorand node software code
+        // https://github.com/algorand/go-algorand/blob/master/protocol/hash.go
+
+        let prefixes = ["appID", "arc", "aB", "aD", "aO", "aP", "aS", "AS", "BH", "B256", "BR", "CR", "GE", "KP", "MA", "MB", "MX", "NIC", "NIR", "NIV", "NPR", "OT1", "OT2", "PF", "PL", "Program", "ProgData", "PS", "PK", "SD", "SpecialAddr", "STIB", "spc", "spm", "spp", "sps", "spv", "TE", "TG", "TL", "TX", "VO"]
+        let prefixBytes = prefixes.map { $0.data(using: .ascii)! }
+        return prefixBytes.contains { data.starts(with: $0) }
+    }
+
+    public func validateData(data: Data, metadata: SignMetadata) throws -> Bool {
+        if hasAlgorandTags(data: data) {
+            return false
+        }
+
+        // Transform encoded data into the "raw" data format
+        var rawData: Data
+        switch metadata.encoding {
+            case .base64:
+                guard let base64String = String(data: data, encoding: .utf8),
+                    let base64Data = Data(base64Encoded: base64String) else {
+                    return false
+                }
+                rawData = base64Data
+            case .msgpack:
+                do {
+                    rawData = try JSONSerialization.data(withJSONObject: messagePackValueToSwift(try MessagePack.unpack(data).value), options: [])
+                } catch {
+                    return false
+                }
+            case .none:
+                rawData = data
+        }
+
+        do {
+            let valid = try JSONSchema.validate(try JSONSerialization.jsonObject(with: rawData, options: []) as! [String: Any], schema: metadata.schema.jsonSchema)
+            return valid.valid
+        } catch {
+            return false
+        }
+    }
+
+    public func signData(context: KeyContext, account: UInt32, change: UInt32, keyIndex: UInt32, data: Data, metadata: SignMetadata) throws -> Data {
+        let valid = try validateData(data: data, metadata: metadata)
+
+        if !valid{
+            throw DataValidationException(message: "Data is not valid")
+        }
+
+        let bip44Path: [UInt32] = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
+        return rawSign(bip44Path: bip44Path, message: data)
+    }
+
+    // Function to convert MessagePackValue to Swift types.
+    // In particular, the .map case is relevant for transforming a JSON object encoded into MessagePack
+    // into a valid Swift representation that can be checked against a JSON schema validator.
+    public func messagePackValueToSwift(_ value: MessagePackValue) -> Any {
+        switch value {
+            case .nil:
+                return NSNull()
+            case .bool(let bool):
+                return bool
+            case .int(let int):
+                return int
+            case .uint(let uint):
+                return uint
+            case .float(let float):
+                return float
+            case .double(let double):
+                return double
+            case .string(let string):
+                return string
+            case .binary(let data):
+                return data
+            case .array(let array):
+                return array.compactMap { messagePackValueToSwift($0) }
+            case .map(let dict):
+                return dict.reduce(into: [String: Any]()) { result, pair in
+                    if let key = pair.key.stringValue {
+                        result[key] = messagePackValueToSwift(pair.value)
+                    }
+                }
+            case .extended(let type, let data):
+                return ["type": type, "data": data]
+            }
+        }
 
     public func ECDH(context: KeyContext, account: UInt32, change: UInt32, keyIndex: UInt32, otherPartyPub: Data, meFirst: Bool) -> Data {
         let rootKey = fromSeed(self.seed)
