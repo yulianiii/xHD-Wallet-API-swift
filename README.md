@@ -80,6 +80,34 @@ let sharedSecret = c.ECDH(context: KeyContext.Identity, account: 0, change: 0, k
 
 Note that under the hood the sharedSecret is calculated using x25519 form.
 
+### Deriving Child Public Keys
+
+You can also utilize `deriveKey` to derive extended public keys by setting `isPrivate: false`, thus allowing `deriveChildNodePublic` to softly derive `N` descendant public keys / addresses using a single extended key / root. A typical use case is for producing one-time addresses, either to calculate for yourself in an insecure environment, or to calculate someone else's one time addresses.
+
+
+> [!IMPORTANT]
+> We distinguish between our 32 byte public key (pk) and the 64 byte extended public key (xpk) where xpk is used to derive child nodes in `deriveChildNodePublic` and `deriveChildNodePrivate`. The xpk is a concatenation of the pk and the 32 byte chaincode which serves as a key for the HMAC functions.
+>
+> **xpk should be kept secret** unless you want to allow someone else to derive descendant keys.
+
+Child public key derivation is relevant at the unhardened levels, e.g. in BIP44 get it at the account level and then derive publicly for change and keyindex.
+
+```swift
+let bip44Path: [UInt32] = [c.harden(44), c.harden(283), c.harden(0), 0]
+
+let walletRoot = c.deriveKey(
+    rootKey: c.fromSeed(data),
+    bip44Path: bip44Path,
+    isPrivate: false,
+    derivationType: BIP32DerivationType.Peikert
+)
+```
+The output of `deriveKey` is an xpk at the change-level (`m / 44' / 283' / 0' / 0`) which can be shared. A counter party can then do the following
+```swift
+let derivedKey = try c.deriveChildNodePublic(extendedKey: walletRoot, index: UInt32(i), g: BIP32DerivationType.Peikert)
+```
+and derive the descendant child pk/address at the index specified.
+
 ## Formatting and Linting
 
 This repo comes with both [Swiftformat](https://github.com/nicklockwood/SwiftFormat) and [SwiftLint](https://github.com/realm/SwiftLint).
