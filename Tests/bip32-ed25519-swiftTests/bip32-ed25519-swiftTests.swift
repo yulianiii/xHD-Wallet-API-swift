@@ -221,14 +221,16 @@ final class Bip32Ed25519Tests: XCTestCase {
             let derivedKey = try c!.deriveChildNodePublic(
                 extendedKey: walletRoot,
                 index: UInt32(i),
-                g: BIP32DerivationType.Peikert)
+                g: BIP32DerivationType.Peikert
+            )
             // Deriving from my own wallet where i DO have private information
             let myKey = try c!.keyGen(
                 context: context,
                 account: account,
                 change: change,
                 keyIndex: UInt32(i),
-                derivationType: BIP32DerivationType.Peikert)
+                derivationType: BIP32DerivationType.Peikert
+            )
 
             // they should NOT match  since the `change` level (as part of BIP44) was hardened
             // derivedKey.prefix(32) ==  public key (excluding chaincode)
@@ -265,14 +267,16 @@ final class Bip32Ed25519Tests: XCTestCase {
         }
 
         var derivationPath: [UInt32] = [
-            c!.harden(44), c!.harden(283), c!.harden(0), 0, 0] + Array(repeating: 0, count: 19)
+            c!.harden(44), c!.harden(283), c!.harden(0), 0, 0,
+        ] + Array(repeating: 0, count: 19)
         let derivationType = BIP32DerivationType.Peikert
 
         _ = try c!.deriveKey(
             rootKey: c!.fromSeed(data),
             bip44Path: derivationPath,
             isPrivate: true,
-            derivationType: derivationType)
+            derivationType: derivationType
+        )
 
         derivationPath += [0]
 
@@ -283,8 +287,10 @@ final class Bip32Ed25519Tests: XCTestCase {
                 rootKey: c!.fromSeed(data),
                 bip44Path: derivationPath,
                 isPrivate: true,
-                derivationType: derivationType),
-                "Expected deriveKey to throw an error")
+                derivationType: derivationType
+            ),
+            "Expected deriveKey to throw an error"
+        )
     }
 
     func testKeyGeneration() throws {
@@ -318,7 +324,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         ]
 
         for (input, expected) in testVectors {
-            let pk = (try c?.keyGen(context: input.0, account: input.1, change: input.2, keyIndex: input.3, derivationType: BIP32DerivationType.Khovratovich))!
+            let pk = try (c?.keyGen(context: input.0, account: input.1, change: input.2, keyIndex: input.3, derivationType: BIP32DerivationType.Khovratovich))!
             XCTAssertEqual(pk, expected)
         }
     }

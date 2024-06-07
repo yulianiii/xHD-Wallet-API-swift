@@ -242,7 +242,6 @@ public class Bip32Ed25519 {
         var leftData = Data(left.serialize().reversed())
         var rightData = Data(right.serialize().reversed()).prefix(ED25519_SCALAR_SIZE)
 
-
         // Padding for left
         leftData = Data(repeating: 0, count: ED25519_SCALAR_SIZE - leftData.count) + leftData
 
