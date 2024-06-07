@@ -43,6 +43,10 @@ public enum Encoding {
     case none
 }
 
+public enum BigIntException: Error {
+    case overflow
+}
+
 class DataValidationException: Error {
     var message: String
     init(message: String) {
@@ -214,7 +218,7 @@ public class Bip32Ed25519 {
         return result
     }
 
-    public func deriveChildNodePrivate(extendedKey: Data, index: UInt32, g: BIP32DerivationType) -> Data {
+    public func deriveChildNodePrivate(extendedKey: Data, index: UInt32, g: BIP32DerivationType) throws -> Data {
         let kl = extendedKey.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
         let kr = extendedKey.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
         let cc = extendedKey.subdata(in: 2 * ED25519_SCALAR_SIZE ..< 3 * ED25519_SCALAR_SIZE)
@@ -227,14 +231,17 @@ public class Bip32Ed25519 {
         let zr = z.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
 
         // left = kl + 8 * trunc28(zl)
-        // right = zr + kr
-
+        // right = zr + kr mod 2^256
         let left = BigUInt(Data(kl.reversed())) + BigUInt(Data(trunc256MinusGBits(zl: zl, g: g).reversed())) * BigUInt(8)
+        guard left < (BigUInt(1) << 255) else {
+            throw BigIntException.overflow
+        }
         let right = BigUInt(Data(kr.reversed())) + BigUInt(Data(zr.reversed()))
 
         // Reverse byte order back after calculations
         var leftData = Data(left.serialize().reversed())
-        var rightData = Data(right.serialize().reversed())
+        var rightData = Data(right.serialize().reversed()).prefix(ED25519_SCALAR_SIZE)
+
 
         // Padding for left
         leftData = Data(repeating: 0, count: ED25519_SCALAR_SIZE - leftData.count) + leftData
@@ -272,7 +279,7 @@ public class Bip32Ed25519 {
         return truncated
     }
 
-    public func deriveKey(rootKey: Data, bip44Path: [UInt32], isPrivate: Bool = true, derivationType: BIP32DerivationType) -> Data {
+    public func deriveKey(rootKey: Data, bip44Path: [UInt32], isPrivate: Bool = true, derivationType: BIP32DerivationType) throws -> Data {
         // Public Key SOFT derivations are possible without using the private key of the parent node
         // Could be an implementation choice.
         // Example:
@@ -288,7 +295,7 @@ public class Bip32Ed25519 {
 
         var derived = rootKey
         for i in 0 ..< bip44Path.count {
-            derived = deriveChildNodePrivate(extendedKey: derived, index: bip44Path[i], g: g)
+            derived = try deriveChildNodePrivate(extendedKey: derived, index: bip44Path[i], g: g)
         }
 
         return isPrivate ? derived : SodiumHelper.scalarMultEd25519BaseNoClamp(derived.subdata(in: 0 ..< ED25519_SCALAR_SIZE)) + derived.subdata(in: 2 * CHAIN_CODE_SIZE ..< 3 * CHAIN_CODE_SIZE)
@@ -300,16 +307,16 @@ public class Bip32Ed25519 {
         change: UInt32,
         keyIndex: UInt32,
         derivationType: BIP32DerivationType = BIP32DerivationType.Peikert
-    ) -> Data {
+    ) throws -> Data {
         let rootKey: Data = fromSeed(seed)
         let bip44Path: [UInt32] = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
 
-        return deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: false, derivationType: derivationType).prefix(32)
+        return try deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: false, derivationType: derivationType).prefix(32)
     }
 
-    private func rawSign(bip44Path: [UInt32], message: Data, derivationType: BIP32DerivationType) -> Data {
+    private func rawSign(bip44Path: [UInt32], message: Data, derivationType: BIP32DerivationType) throws -> Data {
         let rootKey: Data = fromSeed(seed)
-        let raw: Data = deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: true, derivationType: derivationType)
+        let raw: Data = try deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: true, derivationType: derivationType)
 
         let scalar = raw.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
         let c = raw.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
@@ -339,9 +346,9 @@ public class Bip32Ed25519 {
         keyIndex: UInt32,
         prefixEncodedTx: Data,
         derivationType: BIP32DerivationType = BIP32DerivationType.Peikert
-    ) -> Data {
+    ) throws -> Data {
         let bip44Path: [UInt32] = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
-        return rawSign(bip44Path: bip44Path, message: prefixEncodedTx, derivationType: derivationType)
+        return try rawSign(bip44Path: bip44Path, message: prefixEncodedTx, derivationType: derivationType)
     }
 
     public func verifyWithPublicKey(signature: Data, message: Data, publicKey: Data) -> Bool {
@@ -411,7 +418,7 @@ public class Bip32Ed25519 {
         }
 
         let bip44Path: [UInt32] = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
-        return rawSign(bip44Path: bip44Path, message: data, derivationType: derivationType)
+        return try rawSign(bip44Path: bip44Path, message: data, derivationType: derivationType)
     }
 
     // Function to convert MessagePackValue to Swift types.
@@ -456,10 +463,10 @@ public class Bip32Ed25519 {
         otherPartyPub: Data,
         meFirst: Bool,
         derivationType: BIP32DerivationType = BIP32DerivationType.Peikert
-    ) -> Data {
+    ) throws -> Data {
         let rootKey = fromSeed(seed)
-        let publicKey = keyGen(context: context, account: account, change: change, keyIndex: keyIndex, derivationType: derivationType)
-        let privateKey = deriveKey(
+        let publicKey = try keyGen(context: context, account: account, change: change, keyIndex: keyIndex, derivationType: derivationType)
+        let privateKey = try deriveKey(
             rootKey: rootKey,
             bip44Path: getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex),
             isPrivate: true,
