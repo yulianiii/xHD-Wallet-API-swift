@@ -271,8 +271,8 @@ final class Bip32Ed25519Tests: XCTestCase {
         class BrokenBip32Ed25519: Bip32Ed25519 {
             // Override the deriveNonHardened method to return a fixed value
             // Specifically, all 1s (0xFF octets)
-            override func deriveNonHardened(kl: Data, cc: Data, index: UInt32) -> (z: Data, childChainCode: Data) {
-                return (Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 2), Data((0 ..< CHAIN_CODE_SIZE * 2).map { _ in UInt8.random(in: 0 ... 255) }))
+            override func deriveNonHardened(kl _: Data, cc _: Data, index _: UInt32) -> (z: Data, childChainCode: Data) {
+                (Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 2), Data((0 ..< CHAIN_CODE_SIZE * 2).map { _ in UInt8.random(in: 0 ... 255) }))
             }
         }
 
