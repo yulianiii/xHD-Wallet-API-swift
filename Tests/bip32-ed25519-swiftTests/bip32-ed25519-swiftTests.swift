@@ -269,44 +269,10 @@ final class Bip32Ed25519Tests: XCTestCase {
         let maxSafeLevels = 8 // 67_108_864 // 2^26
 
         class BrokenBip32Ed25519: Bip32Ed25519 {
-            override func deriveChildNodePrivate(extendedKey: Data, index _: UInt32, g: BIP32DerivationType) throws -> Data {
-                let kl = extendedKey.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
-                let kr = extendedKey.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
-                // let cc = extendedKey.subdata(in: 2 * ED25519_SCALAR_SIZE ..< 3 * ED25519_SCALAR_SIZE)
-
-                // Z is always all 0xFF
-                let (z, childChainCode) = (Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 2), Data((0 ..< CHAIN_CODE_SIZE * 2).map { _ in UInt8.random(in: 0 ... 255) }))
-
-                let chainCode = childChainCode.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
-                let zl = z.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
-                let zr = z.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
-
-                // left = kl + 8 * trunc28(zl)
-                // right = zr + kr mod 2^256
-                let left = BigUInt(Data(kl.reversed())) + BigUInt(Data(trunc256MinusGBits(zl: zl, g: g).reversed())) * BigUInt(8)
-                guard left < (BigUInt(1) << 255) else {
-                    throw BigIntException.overflow
-                }
-                let right = BigUInt(Data(kr.reversed())) + BigUInt(Data(zr.reversed()))
-
-                // Reverse byte order back after calculations
-                var leftData = Data(left.serialize().reversed())
-                var rightData = Data(right.serialize().reversed()).prefix(ED25519_SCALAR_SIZE)
-
-                // Padding for left
-                leftData = Data(repeating: 0, count: ED25519_SCALAR_SIZE - leftData.count) + leftData
-
-                // Padding for right
-                if rightData.count > ED25519_SCALAR_SIZE {
-                    rightData = rightData.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
-                }
-                rightData += Data(repeating: 0, count: ED25519_SCALAR_SIZE - rightData.count)
-
-                var result = Data()
-                result.append(leftData)
-                result.append(rightData)
-                result.append(chainCode)
-                return result
+            // Override the deriveNonHardened method to return a fixed value
+            // Specifically, all 1s (0xFF octets)
+            override func deriveNonHardened(kl: Data, cc: Data, index: UInt32) -> (z: Data, childChainCode: Data) {
+                return (Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 2), Data((0 ..< CHAIN_CODE_SIZE * 2).map { _ in UInt8.random(in: 0 ... 255) }))
             }
         }
 
@@ -330,17 +296,18 @@ final class Bip32Ed25519Tests: XCTestCase {
         var levels = 0
         var derived = extendedKey
 
-        while levels < maxSafeLevels + 1 {
+        while true {
             do {
                 derived = try mockClassInstance!.deriveChildNodePrivate(extendedKey: derived, index: 0, g: derivationType)
                 levels += 1
+                if levels > maxSafeLevels {
+                    XCTFail("Derivation should have failed at level \(maxSafeLevels), but levels reached \(levels)")
+                    break
+                }
             } catch {
-                XCTAssert(levels == maxSafeLevels)
+                XCTAssert(levels == maxSafeLevels, "Derivation failed at level \(levels) instead of \(maxSafeLevels)")
                 break
             }
-        }
-        if levels != maxSafeLevels {
-            XCTFail("Derivation should have failed at level \(maxSafeLevels), but levels reached \(levels)")
         }
     }
 

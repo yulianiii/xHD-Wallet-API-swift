@@ -233,7 +233,7 @@ public class Bip32Ed25519 {
         // left = kl + 8 * trunc28(zl)
         // right = zr + kr mod 2^256
         let left = BigUInt(Data(kl.reversed())) + BigUInt(Data(trunc256MinusGBits(zl: zl, g: g).reversed())) * BigUInt(8)
-        guard left < (BigUInt(1) << 255) else {
+        guard left < (BigUInt(2).power(255)) else {
             throw BigIntException.overflow
         }
         let right = BigUInt(Data(kr.reversed())) + BigUInt(Data(zr.reversed()))
