@@ -246,9 +246,7 @@ public class Bip32Ed25519 {
         leftData = Data(repeating: 0, count: ED25519_SCALAR_SIZE - leftData.count) + leftData
 
         // Padding for right
-        if rightData.count > ED25519_SCALAR_SIZE {
-            rightData = rightData.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
-        }
+        rightData = rightData.prefix(ED25519_SCALAR_SIZE)
         rightData += Data(repeating: 0, count: ED25519_SCALAR_SIZE - rightData.count)
 
         var result = Data()
