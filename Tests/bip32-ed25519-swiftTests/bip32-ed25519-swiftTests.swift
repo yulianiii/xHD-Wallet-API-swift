@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+import BigInt
 @testable import bip32_ed25519_swift
 import MessagePack
 import MnemonicSwift
@@ -239,7 +240,8 @@ final class Bip32Ed25519Tests: XCTestCase {
     }
 
     func testDeriveChildNodePublicHardenedIndex() throws {
-        let seed = try Mnemonic.deterministicSeedString(from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
+        let seed = try Mnemonic.deterministicSeedString(
+            from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
         guard let data = Data(hexString: seed) else {
             return
         }
@@ -254,10 +256,93 @@ final class Bip32Ed25519Tests: XCTestCase {
         )
 
         // should fail to derive public keys with a hardened index
-        XCTAssertThrowsError(try c!.deriveChildNodePublic(extendedKey: walletRoot, index: c!.harden(UInt32(0)), g: BIP32DerivationType.Peikert))
+        XCTAssertThrowsError(
+            try c!.deriveChildNodePublic(extendedKey: walletRoot, index: c!.harden(UInt32(0)), g: BIP32DerivationType.Peikert))
     }
 
-    func testSafeLevelsOfDerivation() throws {}
+    func testSafeLevelsOfDerivation() throws {
+        // Test to see when, with a broken HMAC and a bad root key, the derivation fails.
+        // Specifically, the derivedNonHardened is replaced and all 0xFF are returned.
+
+        // To test Khovratovich case, replace the derivation type and the max safe levels with the commented values.
+        let derivationType = BIP32DerivationType.Peikert // BIP32DerivationType.Khovratovich
+        let maxSafeLevels = 8 // 67_108_864 // 2^26
+
+        class BrokenBip32Ed25519: Bip32Ed25519 {
+            override func deriveChildNodePrivate(extendedKey: Data, index _: UInt32, g: BIP32DerivationType) throws -> Data {
+                let kl = extendedKey.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
+                let kr = extendedKey.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
+                // let cc = extendedKey.subdata(in: 2 * ED25519_SCALAR_SIZE ..< 3 * ED25519_SCALAR_SIZE)
+
+                // Z is always all 0xFF
+                let (z, childChainCode) = (Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 2), Data((0 ..< CHAIN_CODE_SIZE * 2).map { _ in UInt8.random(in: 0 ... 255) }))
+
+                let chainCode = childChainCode.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
+                let zl = z.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
+                let zr = z.subdata(in: ED25519_SCALAR_SIZE ..< 2 * ED25519_SCALAR_SIZE)
+
+                // left = kl + 8 * trunc28(zl)
+                // right = zr + kr mod 2^256
+                let left = BigUInt(Data(kl.reversed())) + BigUInt(Data(trunc256MinusGBits(zl: zl, g: g).reversed())) * BigUInt(8)
+                guard left < (BigUInt(1) << 255) else {
+                    throw BigIntException.overflow
+                }
+                let right = BigUInt(Data(kr.reversed())) + BigUInt(Data(zr.reversed()))
+
+                // Reverse byte order back after calculations
+                var leftData = Data(left.serialize().reversed())
+                var rightData = Data(right.serialize().reversed()).prefix(ED25519_SCALAR_SIZE)
+
+                // Padding for left
+                leftData = Data(repeating: 0, count: ED25519_SCALAR_SIZE - leftData.count) + leftData
+
+                // Padding for right
+                if rightData.count > ED25519_SCALAR_SIZE {
+                    rightData = rightData.subdata(in: 0 ..< ED25519_SCALAR_SIZE)
+                }
+                rightData += Data(repeating: 0, count: ED25519_SCALAR_SIZE - rightData.count)
+
+                var result = Data()
+                result.append(leftData)
+                result.append(rightData)
+                result.append(chainCode)
+                return result
+            }
+        }
+
+        let seedString = try Mnemonic.deterministicSeedString(from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
+        let mockClassInstance = BrokenBip32Ed25519(seed: seedString)
+
+        // prepare the root key to be as extremely unfavorable as possible
+        var extendedKey = Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 3)
+        var bytes = [UInt8](extendedKey)
+
+        // Clear bits 0, 1, 2, 253, 255
+        bytes[0] &= ~(1 << 0) // Clear bit 0
+        bytes[0] &= ~(1 << 1) // Clear bit 1
+        bytes[0] &= ~(1 << 2) // Clear bit 2
+        bytes[31] &= ~(1 << 5) // Clear bit 253 (bit 5 of the last byte)
+        bytes[31] &= ~(1 << 7) // Clear bit 255 (bit 7 of the last byte)
+
+        // Convert back to Data
+        extendedKey = Data(bytes)
+
+        var levels = 0
+        var derived = extendedKey
+
+        while levels < maxSafeLevels + 1 {
+            do {
+                derived = try mockClassInstance!.deriveChildNodePrivate(extendedKey: derived, index: 0, g: derivationType)
+                levels += 1
+            } catch {
+                XCTAssert(levels == maxSafeLevels)
+                break
+            }
+        }
+        if levels != maxSafeLevels {
+            XCTFail("Derivation should have failed at level \(maxSafeLevels), but levels reached \(levels)")
+        }
+    }
 
     func testDeriveMaxLevelsForKnownSeed() throws {
         let seed = try Mnemonic.deterministicSeedString(
