@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+import BigInt
 @testable import bip32_ed25519_swift
 import MessagePack
 import MnemonicSwift
@@ -125,7 +126,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         let expectedOutputs = [Data([152, 225, 53, 235, 111, 189, 16, 80, 5, 187, 222, 103, 51, 25, 9, 175, 172, 210, 205, 151, 195, 80, 249, 179, 162, 157, 197, 181, 222, 236, 143, 70, 235, 179, 35, 29, 125, 172, 171, 5, 131, 195, 126, 183, 57, 159, 45, 69, 232, 136, 154, 57, 174, 63, 130, 164, 117, 24, 105, 139, 121, 92, 17, 211, 107, 102, 4, 2, 204, 196, 48, 71, 244, 82, 253, 123, 214, 63, 171, 147, 161, 188, 133, 206, 203, 205, 213, 26, 83, 29, 133, 228, 82, 216, 30, 127]), Data([248, 91, 210, 62, 156, 144, 108, 177, 63, 167, 126, 1, 132, 58, 45, 178, 246, 252, 188, 221, 105, 104, 97, 54, 232, 92, 190, 228, 226, 236, 143, 70, 187, 122, 35, 69, 101, 182, 49, 122, 216, 252, 71, 107, 197, 176, 56, 18, 136, 95, 146, 175, 1, 151, 252, 83, 155, 22, 27, 106, 47, 67, 37, 75, 213, 25, 13, 246, 205, 204, 73, 226, 124, 111, 209, 124, 76, 32, 166, 121, 128, 234, 224, 65, 27, 230, 42, 228, 35, 106, 79, 138, 154, 149, 109, 227])]
 
         for i in 0 ..< indices.count {
-            let output = c!.deriveChildNodePrivate(extendedKey: extendedKeys[i], index: indices[i], g: BIP32DerivationType.Khovratovich)
+            let output = try c!.deriveChildNodePrivate(extendedKey: extendedKeys[i], index: indices[i], g: BIP32DerivationType.Khovratovich)
             XCTAssertEqual(output, expectedOutputs[i])
             XCTAssertEqual(output.count, 96)
         }
@@ -156,11 +157,11 @@ final class Bip32Ed25519Tests: XCTestCase {
         let bip44Path = [UInt32]([2_147_483_692, 2_147_483_931, 2_147_483_648, 0, 0])
         let expectedResultPublic = Data([98, 254, 131, 43, 122, 209, 5, 68, 190, 131, 55, 166, 112, 67, 94, 80, 100, 174, 74, 102, 231, 123, 215, 137, 9, 118, 91, 70, 181, 118, 166, 243])
 
-        let outputPublic = c!.deriveKey(rootKey: rootkey, bip44Path: bip44Path, isPrivate: false, derivationType: BIP32DerivationType.Khovratovich)
+        let outputPublic = try c!.deriveKey(rootKey: rootkey, bip44Path: bip44Path, isPrivate: false, derivationType: BIP32DerivationType.Khovratovich)
         XCTAssertEqual(outputPublic.prefix(32), expectedResultPublic)
 
         let expectedResultPrivate = Data([128, 16, 43, 185, 143, 170, 195, 253, 23, 137, 194, 198, 197, 89, 211, 113, 92, 217, 202, 194, 40, 214, 212, 176, 247, 106, 35, 70, 234, 236, 143, 70, 1, 174, 20, 40, 64, 137, 36, 62, 147, 107, 233, 27, 40, 35, 204, 20, 47, 117, 49, 53, 234, 255, 27, 174, 32, 211, 238, 199, 120, 112, 197, 68, 159, 146, 199, 144, 215, 171, 174, 224, 224, 10, 78, 193, 251, 120, 161, 212, 56, 232, 204, 247, 194, 186, 217, 160, 24, 165, 191, 154, 93, 81, 0, 117])
-        let outputPrivate = c!.deriveKey(rootKey: rootkey, bip44Path: bip44Path, isPrivate: true, derivationType: BIP32DerivationType.Khovratovich)
+        let outputPrivate = try c!.deriveKey(rootKey: rootkey, bip44Path: bip44Path, isPrivate: true, derivationType: BIP32DerivationType.Khovratovich)
         XCTAssertEqual(outputPrivate, expectedResultPrivate)
     }
 
@@ -179,7 +180,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         let derivationTypes: [BIP32DerivationType] = [.Khovratovich, .Peikert]
 
         for derivationType in derivationTypes {
-            let walletRoot = c!.deriveKey(
+            let walletRoot = try c!.deriveKey(
                 rootKey: c!.fromSeed(data),
                 bip44Path: bip44Path,
                 isPrivate: false,
@@ -189,7 +190,7 @@ final class Bip32Ed25519Tests: XCTestCase {
             let numPublicKeysToDerive = 10
             for i in 0 ..< numPublicKeysToDerive {
                 let derivedKey = try c!.deriveChildNodePublic(extendedKey: walletRoot, index: UInt32(i), g: derivationType)
-                let myKey = c!.keyGen(context: context, account: account, change: change, keyIndex: UInt32(i), derivationType: derivationType)
+                let myKey = try c!.keyGen(context: context, account: account, change: change, keyIndex: UInt32(i), derivationType: derivationType)
 
                 XCTAssertEqual(derivedKey.prefix(32), myKey, "The derived key does not match the expected key for derivation type \(derivationType)")
             }
@@ -209,7 +210,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         // hardened change level
         let bip44Path: [UInt32] = [c!.harden(44), c!.harden(283), c!.harden(0), c!.harden(0)]
 
-        let walletRoot = c!.deriveKey(
+        let walletRoot = try c!.deriveKey(
             rootKey: c!.fromSeed(data),
             bip44Path: bip44Path,
             isPrivate: false,
@@ -218,9 +219,19 @@ final class Bip32Ed25519Tests: XCTestCase {
 
         let numPublicKeysToDerive = 10
         for i in 0 ..< numPublicKeysToDerive {
-            let derivedKey = try c!.deriveChildNodePublic(extendedKey: walletRoot, index: UInt32(i), g: BIP32DerivationType.Peikert)
+            let derivedKey = try c!.deriveChildNodePublic(
+                extendedKey: walletRoot,
+                index: UInt32(i),
+                g: BIP32DerivationType.Peikert
+            )
             // Deriving from my own wallet where i DO have private information
-            let myKey = c!.keyGen(context: context, account: account, change: change, keyIndex: UInt32(i), derivationType: BIP32DerivationType.Peikert)
+            let myKey = try c!.keyGen(
+                context: context,
+                account: account,
+                change: change,
+                keyIndex: UInt32(i),
+                derivationType: BIP32DerivationType.Peikert
+            )
 
             // they should NOT match  since the `change` level (as part of BIP44) was hardened
             // derivedKey.prefix(32) ==  public key (excluding chaincode)
@@ -229,14 +240,15 @@ final class Bip32Ed25519Tests: XCTestCase {
     }
 
     func testDeriveChildNodePublicHardenedIndex() throws {
-        let seed = try Mnemonic.deterministicSeedString(from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
+        let seed = try Mnemonic.deterministicSeedString(
+            from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
         guard let data = Data(hexString: seed) else {
             return
         }
 
         let bip44Path: [UInt32] = [c!.harden(44), c!.harden(283), c!.harden(0), 0]
 
-        let walletRoot = c!.deriveKey(
+        let walletRoot = try c!.deriveKey(
             rootKey: c!.fromSeed(data),
             bip44Path: bip44Path,
             isPrivate: false,
@@ -244,7 +256,93 @@ final class Bip32Ed25519Tests: XCTestCase {
         )
 
         // should fail to derive public keys with a hardened index
-        XCTAssertThrowsError(try c!.deriveChildNodePublic(extendedKey: walletRoot, index: c!.harden(UInt32(0)), g: BIP32DerivationType.Peikert))
+        XCTAssertThrowsError(
+            try c!.deriveChildNodePublic(extendedKey: walletRoot, index: c!.harden(UInt32(0)), g: BIP32DerivationType.Peikert))
+    }
+
+    func testSafeLevelsOfDerivation() throws {
+        // Test to see when, with a broken HMAC and a bad root key, the derivation fails.
+        // Specifically, the derivedNonHardened is replaced and all 0xFF are returned.
+
+        // To test Khovratovich case, replace the derivation type and the max safe levels with the commented values.
+        let derivationType = BIP32DerivationType.Peikert // BIP32DerivationType.Khovratovich
+        let maxSafeLevels = 8 // 67_108_864 // 2^26
+
+        class BrokenBip32Ed25519: Bip32Ed25519 {
+            // Override the deriveNonHardened method to return a fixed value
+            // Specifically, all 1s (0xFF octets)
+            override func deriveNonHardened(kl _: Data, cc _: Data, index _: UInt32) -> (z: Data, childChainCode: Data) {
+                (Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 2), Data((0 ..< CHAIN_CODE_SIZE * 2).map { _ in UInt8.random(in: 0 ... 255) }))
+            }
+        }
+
+        let seedString = try Mnemonic.deterministicSeedString(from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
+        let mockClassInstance = BrokenBip32Ed25519(seed: seedString)
+
+        // prepare the root key to be as extremely unfavorable as possible
+        var extendedKey = Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 3)
+        var bytes = [UInt8](extendedKey)
+
+        // Clear bits 0, 1, 2, 253, 255
+        bytes[0] &= ~(1 << 0) // Clear bit 0
+        bytes[0] &= ~(1 << 1) // Clear bit 1
+        bytes[0] &= ~(1 << 2) // Clear bit 2
+        bytes[31] &= ~(1 << 5) // Clear bit 253 (bit 5 of the last byte)
+        bytes[31] &= ~(1 << 7) // Clear bit 255 (bit 7 of the last byte)
+
+        // Convert back to Data
+        extendedKey = Data(bytes)
+
+        var levels = 0
+        var derived = extendedKey
+
+        while true {
+            do {
+                derived = try mockClassInstance!.deriveChildNodePrivate(extendedKey: derived, index: 0, g: derivationType)
+                levels += 1
+                if levels > maxSafeLevels {
+                    XCTFail("Derivation should have failed at level \(maxSafeLevels), but levels reached \(levels)")
+                    break
+                }
+            } catch {
+                XCTAssert(levels == maxSafeLevels, "Derivation failed at level \(levels) instead of \(maxSafeLevels)")
+                break
+            }
+        }
+    }
+
+    func testDeriveMaxLevelsForKnownSeed() throws {
+        let seed = try Mnemonic.deterministicSeedString(
+            from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
+        guard let data = Data(hexString: seed) else {
+            return
+        }
+
+        var derivationPath: [UInt32] = [
+            c!.harden(44), c!.harden(283), c!.harden(0), 0, 0,
+        ] + Array(repeating: 0, count: 19)
+        let derivationType = BIP32DerivationType.Peikert
+
+        _ = try c!.deriveKey(
+            rootKey: c!.fromSeed(data),
+            bip44Path: derivationPath,
+            isPrivate: true,
+            derivationType: derivationType
+        )
+
+        derivationPath += [0]
+
+        XCTAssert(derivationPath.count == 25)
+
+        XCTAssertThrowsError(
+            try c!.deriveKey(
+                rootKey: c!.fromSeed(data),
+                bip44Path: derivationPath,
+                isPrivate: true,
+                derivationType: derivationType
+            ),
+            "Expected deriveKey to throw an error"
+        )
     }
 
     func testKeyGeneration() throws {
@@ -278,7 +376,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         ]
 
         for (input, expected) in testVectors {
-            let pk = (c?.keyGen(context: input.0, account: input.1, change: input.2, keyIndex: input.3, derivationType: BIP32DerivationType.Khovratovich))!
+            let pk = try (c?.keyGen(context: input.0, account: input.1, change: input.2, keyIndex: input.3, derivationType: BIP32DerivationType.Khovratovich))!
             XCTAssertEqual(pk, expected)
         }
     }
@@ -289,8 +387,8 @@ final class Bip32Ed25519Tests: XCTestCase {
         let prefixEncodedTx = Data(base64Encoded: "VFiJo2FtdM0D6KNmZWXNA+iiZnbOAkeSd6NnZW6sdGVzdG5ldC12MS4womdoxCBIY7UYpLPITsgQ8i1PEIHLD3HwWaesIN7GL39w5Qk6IqJsds4CR5Zfo3JjdsQgYv6DK3rRBUS+gzemcENeUGSuSmbne9eJCXZbRrV2pvOjc25kxCBi/oMretEFRL6DN6ZwQ15QZK5KZud714kJdltGtXam86R0eXBlo3BheQ==")
 
         let bip44Path = (KeyContext.Address, UInt32(0), UInt32(0), UInt32(0))
-        guard let pk = c?.keyGen(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, derivationType: BIP32DerivationType.Khovratovich) else { return }
-        guard let sig = c?.signAlgoTransaction(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, prefixEncodedTx: prefixEncodedTx!, derivationType: BIP32DerivationType.Khovratovich) else { return }
+        guard let pk = try c?.keyGen(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, derivationType: BIP32DerivationType.Khovratovich) else { return }
+        guard let sig = try c?.signAlgoTransaction(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, prefixEncodedTx: prefixEncodedTx!, derivationType: BIP32DerivationType.Khovratovich) else { return }
 
         XCTAssertEqual(c?.verifyWithPublicKey(signature: sig, message: prefixEncodedTx!, publicKey: pk), true)
         XCTAssertEqual(try TestUtils.encodeAddress(bytes: pk), "ML7IGK322ECUJPUDG6THAQ26KBSK4STG4555PCIJOZNUNNLWU3Z3ZFXITA")
@@ -547,7 +645,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         "eyIwIjogMjgsICIxIjogMTAzLCAiMiI6IDI2LCAiMyI6IDIyMiwgIjQiOiA3LCAiNSI6IDg2LCAiNiI6IDU1LCAiNyI6IDk1LCAiOCI6IDE5NywgIjkiOiAxNzksICIxMCI6IDI0OSwgIjExIjogMjUyLCAiMTIiOiAyMzIsICIxMyI6IDI1MiwgIjE0IjogMTc2LCAiMTUiOiAzOSwgIjE2IjogMTEyLCAiMTciOiAxMzEsICIxOCI6IDUyLCAiMTkiOiA2MywgIjIwIjogMjEyLCAiMjEiOiA1OCwiMjIiOiAyMjYsICIyMyI6IDg5LCAiMjQiOiA2NCwgIjI1IjogOTQsICIyNiI6IDIzLCAiMjciOiA5MSwgIjI4IjogMTI4LCAiMjkiOiAxNDMsICIzMCI6IDEyMywgIjMxIjogMjd9",
         "de0020a1301ca13167a1321aa133ccdea13407a13556a13637a1375fa138ccc5a139ccb3a23130ccf9a23131ccfca23132cce8a23133ccfca23134ccb0a2313527a2313670a23137cc83a2313834a231393fa23230ccd4a232313aa23232cce2a2323359a2323440a232355ea2323617a232375ba23238cc80a23239cc8fa233307ba233311b"]
 
-        let pubkey = c?.keyGen(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, derivationType: BIP32DerivationType.Khovratovich)
+        let pubkey = try c?.keyGen(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, derivationType: BIP32DerivationType.Khovratovich)
 
         let sig = try c?.signData(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, data: Data(challengeJSON[0].utf8), metadata: SignMetadata(encoding: Encoding.none, schema: schema), derivationType: BIP32DerivationType.Khovratovich)
         let result = c?.verifyWithPublicKey(signature: sig!, message: Data(challengeJSON[0].utf8), publicKey: pubkey!)
@@ -597,11 +695,11 @@ final class Bip32Ed25519Tests: XCTestCase {
             throw NSError(domain: "Bip32Ed25519ECDHTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bip32Ed25519 not initialized"])
         }
 
-        let aliceKey = alice?.keyGen(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, derivationType: BIP32DerivationType.Khovratovich)
-        let bobKey = bob?.keyGen(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, derivationType: BIP32DerivationType.Khovratovich)
+        let aliceKey = try alice?.keyGen(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, derivationType: BIP32DerivationType.Khovratovich)
+        let bobKey = try bob?.keyGen(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, derivationType: BIP32DerivationType.Khovratovich)
 
-        let aliceSharedSecret = alice?.ECDH(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, otherPartyPub: bobKey!, meFirst: true, derivationType: BIP32DerivationType.Khovratovich)
-        let bobSharedSecret = bob?.ECDH(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, otherPartyPub: aliceKey!, meFirst: false, derivationType: BIP32DerivationType.Khovratovich)
+        let aliceSharedSecret = try alice?.ECDH(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, otherPartyPub: bobKey!, meFirst: true, derivationType: BIP32DerivationType.Khovratovich)
+        let bobSharedSecret = try bob?.ECDH(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, otherPartyPub: aliceKey!, meFirst: false, derivationType: BIP32DerivationType.Khovratovich)
 
         XCTAssertNotEqual(aliceKey, bobKey)
         XCTAssertEqual(aliceSharedSecret, bobSharedSecret)
@@ -609,8 +707,8 @@ final class Bip32Ed25519Tests: XCTestCase {
 
         // Reverse concatenation order
 
-        let aliceSharedSecret2 = alice?.ECDH(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, otherPartyPub: bobKey!, meFirst: false, derivationType: BIP32DerivationType.Khovratovich)
-        let bobSharedSecret2 = bob?.ECDH(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, otherPartyPub: aliceKey!, meFirst: true, derivationType: BIP32DerivationType.Khovratovich)
+        let aliceSharedSecret2 = try alice?.ECDH(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, otherPartyPub: bobKey!, meFirst: false, derivationType: BIP32DerivationType.Khovratovich)
+        let bobSharedSecret2 = try bob?.ECDH(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, otherPartyPub: aliceKey!, meFirst: true, derivationType: BIP32DerivationType.Khovratovich)
 
         XCTAssertNotEqual(aliceSharedSecret, aliceSharedSecret2)
         XCTAssertNotEqual(bobSharedSecret, bobSharedSecret2)
