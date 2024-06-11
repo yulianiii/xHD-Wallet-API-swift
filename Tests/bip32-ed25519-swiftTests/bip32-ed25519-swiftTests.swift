@@ -681,7 +681,6 @@ final class Bip32Ed25519Tests: XCTestCase {
         // Malformed schema
         XCTAssertThrowsError(try Schema(filePath: String("Tests/bip32-ed25519-swiftTests/schemas/malformed.json")))
         XCTAssertThrowsError(try Schema(filePath: String("/path/that/does/not/exist.json")))
-    
     }
 
     func testECDH() throws {
