@@ -16,6 +16,8 @@ cp git-hooks/* .git/hooks/
 
 ## How to Use
 
+NOTE: In the example below we are using the library MnemonicSwift for BIP-39 support. Essentially it can be used to turn a mnemonic of 24 words (corresponding to an _entropy_) into a seed, by running it through a PBKDF2 in accordance with [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki#from-mnemonic-to-seed). You are free to pick another library or use another method to produce the seed, but BIP-39 is an industry standard.
+
 To initialize a wallet (using MnemmonicSwift for BIP-39 support) from a seed phrase:
 
 ```swift
