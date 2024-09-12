@@ -1,4 +1,4 @@
-# BIP32-Ed25519-Swift
+# xHD-Wallet-API Swift
 
 A Swift implementation of ARC-0052 Algorand, in accordance with the paper BIP32-Ed25519 Hierarchical Deterministic Keys over a Non-linear Keyspace.
 
@@ -21,10 +21,10 @@ NOTE: In the example below we are using the library MnemonicSwift for BIP-39 sup
 To initialize a wallet (using MnemmonicSwift for BIP-39 support, which you can import using your own package manager) from a seed phrase:
 
 ```swift
-import bip32_ed25519_swift
+import x_hd_wallet_api
 import MnemonicSwift
 let seed = try Mnemonic.deterministicSeedString(from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
-let c = Bip32Ed25519(seed: seed)
+let c = XHDWalletAPI(seed: seed)
 ```
 
 Now you can generate keys using a BIP-44 derivation path:
@@ -86,7 +86,6 @@ Note that under the hood the sharedSecret is calculated using x25519 form.
 
 You can also utilize `deriveKey` to derive extended public keys by setting `isPrivate: false`, thus allowing `deriveChildNodePublic` to softly derive `N` descendant public keys / addresses using a single extended key / root. A typical use case is for producing one-time addresses, either to calculate for yourself in an insecure environment, or to calculate someone else's one time addresses.
 
-
 > [!IMPORTANT]
 > We distinguish between our 32 byte public key (pk) and the 64 byte extended public key (xpk) where xpk is used to derive child nodes in `deriveChildNodePublic` and `deriveChildNodePrivate`. The xpk is a concatenation of the pk and the 32 byte chaincode which serves as a key for the HMAC functions.
 >
@@ -104,10 +103,13 @@ let walletRoot = c.deriveKey(
     derivationType: BIP32DerivationType.Peikert
 )
 ```
+
 The output of `deriveKey` is an xpk at the change-level (`m / 44' / 283' / 0' / 0`) which can be shared. A counter party can then do the following
+
 ```swift
 let derivedKey = try c.deriveChildNodePublic(extendedKey: walletRoot, index: UInt32(i), g: BIP32DerivationType.Peikert)
 ```
+
 and derive the descendant child pk/address at the index specified.
 
 ## Formatting and Linting

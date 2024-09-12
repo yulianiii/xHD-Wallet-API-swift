@@ -16,7 +16,7 @@
  */
 
 import BigInt
-@testable import bip32_ed25519_swift
+@testable import x_hd_wallet_api
 import MessagePack
 import MnemonicSwift
 import XCTest
@@ -25,14 +25,14 @@ enum MyError: Error {
     case expectedError
 }
 
-final class Bip32Ed25519Tests: XCTestCase {
-    var c: Bip32Ed25519?
+final class XHDWalletAPITests: XCTestCase {
+    var c: XHDWalletAPI?
 
     override func setUpWithError() throws {
         let seed = try Mnemonic.deterministicSeedString(from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
-        c = Bip32Ed25519(seed: seed)
+        c = XHDWalletAPI(seed: seed)
         guard c != nil else {
-            throw NSError(domain: "Bip32Ed25519Tests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bip32Ed25519 not initialized"])
+            throw NSError(domain: "XHDWalletAPITests", code: 1, userInfo: [NSLocalizedDescriptionKey: "XHDWalletAPI not initialized"])
         }
     }
 
@@ -64,10 +64,10 @@ final class Bip32Ed25519Tests: XCTestCase {
 
         for seed in seeds {
             let seed = try Mnemonic.deterministicSeedString(from: seed)
-            XCTAssertNotNil(Bip32Ed25519(seed: seed))
+            XCTAssertNotNil(XHDWalletAPI(seed: seed))
         }
 
-        XCTAssertNil(Bip32Ed25519(seed: "invalid hex seed"))
+        XCTAssertNil(XHDWalletAPI(seed: "invalid hex seed"))
     }
 
     func testHarden() throws {
@@ -268,7 +268,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         let derivationType = BIP32DerivationType.Peikert // BIP32DerivationType.Khovratovich
         let maxSafeLevels = 8 // 67_108_864 // 2^26
 
-        class BrokenBip32Ed25519: Bip32Ed25519 {
+        class BrokenXHDWalletAPI: XHDWalletAPI {
             // Override the deriveNonHardened method to return a fixed value
             // Specifically, all 1s (0xFF octets)
             override func deriveNonHardened(kl _: Data, cc _: Data, index _: UInt32) -> (z: Data, childChainCode: Data) {
@@ -277,7 +277,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         }
 
         let seedString = try Mnemonic.deterministicSeedString(from: "salon zoo engage submit smile frost later decide wing sight chaos renew lizard rely canal coral scene hobby scare step bus leaf tobacco slice")
-        let mockClassInstance = BrokenBip32Ed25519(seed: seedString)
+        let mockClassInstance = BrokenXHDWalletAPI(seed: seedString)
 
         // prepare the root key to be as extremely unfavorable as possible
         var extendedKey = Data(repeating: 0xFF, count: ED25519_SCALAR_SIZE * 3)
@@ -395,7 +395,7 @@ final class Bip32Ed25519Tests: XCTestCase {
     }
 
     func testValidateDataAuthRequest() throws {
-        let schema = try Schema(filePath: "Tests/bip32-ed25519-swiftTests/schemas/auth.request.json")
+        let schema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")
 
         let challengeJSON = ["""
         {
@@ -494,7 +494,7 @@ final class Bip32Ed25519Tests: XCTestCase {
     }
 
     func testValidateDataMsgSchema() throws {
-        let schema = try Schema(filePath: "Tests/bip32-ed25519-swiftTests/schemas/msg.schema.json")
+        let schema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/msg.schema.json")
 
         let msgJSON =
             ["""
@@ -587,7 +587,7 @@ final class Bip32Ed25519Tests: XCTestCase {
         let txBytes = Data([84, 88, 138, 163, 97, 109, 116, 206, 0, 152, 150, 128, 163, 102, 101, 101, 205, 3, 232, 162, 102, 118, 1, 163, 103, 101, 110, 172, 100, 111, 99, 107, 101, 114, 110, 101, 116, 45, 118, 49, 162, 103, 104, 196, 32, 241, 58, 20, 104, 56, 57, 150, 147, 27, 180, 33, 136, 150, 19, 75, 8, 122, 48, 230, 57, 166, 3, 22, 66, 230, 213, 105, 153, 155, 59, 116, 186, 162, 108, 118, 205, 3, 233, 164, 110, 111, 116, 101, 196, 17, 116, 101, 115, 116, 32, 116, 114, 97, 110, 115, 97, 99, 116, 105, 111, 110, 33, 163, 114, 99, 118, 196, 32, 5, 203, 108, 214, 116, 145, 109, 203, 70, 233, 152, 142, 138, 129, 38, 88, 243, 206, 29, 133, 166, 17, 142, 91, 181, 120, 56, 133, 132, 103, 116, 129, 163, 115, 110, 100, 196, 32, 71, 235, 237, 176, 141, 136, 126, 190, 43, 187, 124, 13, 136, 150, 5, 71, 243, 107, 143, 109, 238, 238, 131, 63, 179, 59, 91, 63, 6, 64, 197, 130, 164, 116, 121, 112, 101, 163, 112, 97, 121])
         XCTAssert(c?.hasAlgorandTags(data: txBytes) == true)
 
-        let hasPrefixedResult = try c?.validateData(data: txBytes, metadata: SignMetadata(encoding: Encoding.base64, schema: Schema(filePath: "Tests/bip32-ed25519-swiftTests/schemas/auth.request.json")))
+        let hasPrefixedResult = try c?.validateData(data: txBytes, metadata: SignMetadata(encoding: Encoding.base64, schema: Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")))
         XCTAssert(hasPrefixedResult == false)
 
         // Contain illegal prefix
@@ -631,7 +631,7 @@ final class Bip32Ed25519Tests: XCTestCase {
     }
 
     func testAuthReqSigning() throws {
-        let schema = try Schema(filePath: "Tests/bip32-ed25519-swiftTests/schemas/auth.request.json")
+        let schema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")
 
         let challengeJSON = ["""
         {
@@ -675,25 +675,25 @@ final class Bip32Ed25519Tests: XCTestCase {
 
     func testSchema() throws {
         // Should successfully load
-        _ = try Schema(filePath: String("Tests/bip32-ed25519-swiftTests/schemas/auth.request.json"))
-        _ = try Schema(filePath: String("Tests/bip32-ed25519-swiftTests/schemas/msg.schema.json"))
+        _ = try Schema(filePath: String("Tests/x-hd-wallet-apiTests/schemas/auth.request.json"))
+        _ = try Schema(filePath: String("Tests/x-hd-wallet-apiTests/schemas/msg.schema.json"))
 
         // Malformed schema
-        XCTAssertThrowsError(try Schema(filePath: String("Tests/bip32-ed25519-swiftTests/schemas/malformed.json")))
+        XCTAssertThrowsError(try Schema(filePath: String("Tests/x-hd-wallet-apiTests/schemas/malformed.json")))
         XCTAssertThrowsError(try Schema(filePath: String("/path/that/does/not/exist.json")))
     }
 
     func testECDH() throws {
         let aliceSeed = try Mnemonic.deterministicSeedString(from: "exact remain north lesson program series excess lava material second riot error boss planet brick rotate scrap army riot banner adult fashion casino bamboo")
-        let alice = Bip32Ed25519(seed: aliceSeed)
+        let alice = XHDWalletAPI(seed: aliceSeed)
         guard alice != nil else {
-            throw NSError(domain: "Bip32Ed25519ECDHTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bip32Ed25519 not initialized"])
+            throw NSError(domain: "XHDWalletAPIECDHTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "XHDWalletAPI not initialized"])
         }
 
         let bobSeed = try Mnemonic.deterministicSeedString(from: "identify length ranch make silver fog much puzzle borrow relax occur drum blue oval book pledge reunion coral grace lamp recall fever route carbon")
-        let bob = Bip32Ed25519(seed: bobSeed)
+        let bob = XHDWalletAPI(seed: bobSeed)
         guard bob != nil else {
-            throw NSError(domain: "Bip32Ed25519ECDHTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bip32Ed25519 not initialized"])
+            throw NSError(domain: "XHDWalletAPIECDHTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "XHDWalletAPI not initialized"])
         }
 
         let aliceKey = try alice?.keyGen(context: KeyContext.Identity, account: 0, change: 0, keyIndex: 0, derivationType: BIP32DerivationType.Khovratovich)

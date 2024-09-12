@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "bip32-ed25519-swift",
+    name: "xHD-Wallet-API",
     platforms: [
         .iOS(.v15),
         .watchOS(.v9),
@@ -12,8 +12,8 @@ let package = Package(
     ],
     products: [
         .library(
-            name: "bip32-ed25519-swift",
-            targets: ["bip32-ed25519-swift"]
+            name: "x-hd-wallet-api",
+            targets: ["x-hd-wallet-api"]
         ),
     ],
     dependencies: [
@@ -28,7 +28,7 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "bip32-ed25519-swift",
+            name: "x-hd-wallet-api",
             dependencies: [
                 .product(name: "BigInt", package: "BigInt"),
                 .product(name: "JSONSchema", package: "JSONSchema.swift"),
@@ -40,8 +40,8 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "bip32-ed25519-swiftTests",
-            dependencies: ["bip32-ed25519-swift",
+            name: "x-hd-wallet-apiTests",
+            dependencies: ["x-hd-wallet-api",
                            .product(name: "MnemonicSwift", package: "MnemonicSwift"),
                            .product(name: "Base32", package: "Base32")],
             resources: [

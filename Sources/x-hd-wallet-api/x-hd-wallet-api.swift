@@ -98,7 +98,7 @@ let ED25519_SCALAR_SIZE = 32
 let ED25519_POINT_SIZE = 32
 let CHAIN_CODE_SIZE = 32
 
-public class Bip32Ed25519 {
+public class XHDWalletAPI {
     private var seed: Data
 
     public init?(seed: String) {
