@@ -55,9 +55,9 @@ class DataValidationException: Error {
 }
 
 public struct Schema {
-    var jsonSchema: [String: Any]
+    public var jsonSchema: [String: Any]
 
-    init(filePath: String) throws {
+    public init(filePath: String) throws {
         let url = URL(fileURLWithPath: filePath)
         let data = try Data(contentsOf: url)
         let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
@@ -71,8 +71,13 @@ public struct Schema {
 }
 
 public struct SignMetadata {
-    var encoding: Encoding
-    var schema: Schema
+    public var encoding: Encoding
+    public var schema: Schema
+
+    public init(encoding: Encoding, schema: Schema) {
+        self.encoding = encoding
+        self.schema = schema
+    }
 }
 
 extension Data {
