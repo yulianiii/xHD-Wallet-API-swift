@@ -316,7 +316,7 @@ public class XHDWalletAPI {
         return try deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: false, derivationType: derivationType).prefix(32)
     }
 
-    private func rawSign(bip44Path: [UInt32], message: Data, derivationType: BIP32DerivationType) throws -> Data {
+    public func rawSign(bip44Path: [UInt32], message: Data, derivationType: BIP32DerivationType) throws -> Data {
         let rootKey: Data = fromSeed(seed)
         let raw: Data = try deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: true, derivationType: derivationType)
 
