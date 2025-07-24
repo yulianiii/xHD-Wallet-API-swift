@@ -316,7 +316,7 @@ public class XHDWalletAPI {
         return try deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: false, derivationType: derivationType).prefix(32)
     }
 
-    public func rawSign(bip44Path: [UInt32], message: Data, derivationType: BIP32DerivationType) throws -> Data {
+    func rawSign(bip44Path: [UInt32], message: Data, derivationType: BIP32DerivationType) throws -> Data {
         let rootKey: Data = fromSeed(seed)
         let raw: Data = try deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: true, derivationType: derivationType)
 
@@ -384,7 +384,16 @@ public class XHDWalletAPI {
             rawData = base64Data
         case .msgpack:
             do {
-                rawData = try JSONSerialization.data(withJSONObject: messagePackValueToSwift(MessagePack.unpack(data).value), options: [])
+                let unpackedValue = try MessagePack.unpack(data).value
+                let swiftObject = messagePackValueToSwift(unpackedValue)
+
+                // If the unpacked value is binary data, treat it as raw bytes
+                if let binaryData = swiftObject as? Data {
+                    rawData = binaryData
+                } else {
+                    // Otherwise, serialize back to JSON
+                    rawData = try JSONSerialization.data(withJSONObject: swiftObject, options: [])
+                }
             } catch {
                 return false
             }
@@ -393,12 +402,14 @@ public class XHDWalletAPI {
         }
 
         do {
-            if let jsonObject = try JSONSerialization.jsonObject(with: rawData, options: []) as? [String: Any] {
-                let valid = try JSONSchema.validate(jsonObject, schema: metadata.schema.jsonSchema)
-                return valid.valid
-            } else {
-                return false
+            // By default, treat data as raw bytes and transform into JSON object with index keys
+            var byteObject: [String: Any] = [:]
+            for (index, byte) in rawData.enumerated() {
+                byteObject[String(index)] = Int(byte)
             }
+
+            let valid = try JSONSchema.validate(byteObject, schema: metadata.schema.jsonSchema)
+            return valid.valid
         } catch {
             return false
         }
