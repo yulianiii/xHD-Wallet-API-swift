@@ -453,6 +453,7 @@ public class XHDWalletAPI {
             print("🐞 [DEBUG] Sample JSON object: \(Array(byteObject.prefix(5)))")
             print("🐞 [DEBUG] Schema keys: \(metadata.schema.jsonSchema.keys)")
             
+            // Validate the dictionary directly with JSONSchema.validate
             let valid = try JSONSchema.validate(byteObject, schema: metadata.schema.jsonSchema)
             print("🐞 [DEBUG] JSON Schema validation result: \(valid.valid)")
             if !valid.valid {
