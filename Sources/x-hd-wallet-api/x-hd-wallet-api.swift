@@ -62,8 +62,18 @@ public struct Schema {
         let data = try Data(contentsOf: url)
         let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
 
-        guard let jsonSchema = jsonObject as? [String: Any] else {
+        guard var jsonSchema = jsonObject as? [String: Any] else {
             throw NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON schema"])
+        }
+
+        // Fix the additionalProperties issue - ensure it's a boolean, not an integer
+        if let additionalProps = jsonSchema["additionalProperties"] {
+            if let intValue = additionalProps as? Int {
+                jsonSchema["additionalProperties"] = (intValue != 0)
+            } else if let stringValue = additionalProps as? String {
+                jsonSchema["additionalProperties"] = (stringValue.lowercased() != "false" && stringValue != "0")
+            }
+            // If it's already a boolean, leave it as is
         }
 
         self.jsonSchema = jsonSchema
@@ -368,13 +378,9 @@ public class XHDWalletAPI {
     }
 
     public func validateData(data: Data, metadata: SignMetadata) throws -> Bool {
-        // Debug: Check for Algorand tags first
         if hasAlgorandTags(data: data) {
-            print("🐞 [DEBUG] validateData: Data contains Algorand tags - rejecting")
             return false
         }
-        
-        print("🐞 [DEBUG] validateData: No Algorand tags found, proceeding with validation")
 
         // Transform encoded data into the "raw" data format
         var rawData: Data
@@ -383,7 +389,6 @@ public class XHDWalletAPI {
             guard let base64String = String(data: data, encoding: .utf8),
                   let base64Data = Data(base64Encoded: base64String)
             else {
-                print("🐞 [DEBUG] validateData: Failed to decode base64 data")
                 return false
             }
             rawData = base64Data
@@ -400,15 +405,11 @@ public class XHDWalletAPI {
                     rawData = try JSONSerialization.data(withJSONObject: swiftObject, options: [])
                 }
             } catch {
-                print("🐞 [DEBUG] validateData: Failed to unpack msgpack data: \(error)")
                 return false
             }
         case .none:
             rawData = data
         }
-
-        print("🐞 [DEBUG] validateData: Raw data size: \(rawData.count) bytes")
-        print("🐞 [DEBUG] validateData: Raw data hex: \(rawData.map { String(format: "%02hhx", $0) }.joined())")
 
         do {
             // By default, treat data as raw bytes and transform into JSON object with index keys
@@ -416,18 +417,10 @@ public class XHDWalletAPI {
             for (index, byte) in rawData.enumerated() {
                 byteObject[String(index)] = Int(byte)
             }
-            
-            print("🐞 [DEBUG] validateData: Byte object keys count: \(byteObject.keys.count)")
-            print("🐞 [DEBUG] validateData: First few byte values: \(Array(byteObject.values.prefix(5)))")
 
             let valid = try JSONSchema.validate(byteObject, schema: metadata.schema.jsonSchema)
-            print("🐞 [DEBUG] validateData: Schema validation result: \(valid.valid)")
-            if !valid.valid {
-                print("🐞 [DEBUG] validateData: Schema validation errors: \(valid.errors ?? [])")  
-            }
             return valid.valid
         } catch {
-            print("🐞 [DEBUG] validateData: Exception during validation: \(error)")
             return false
         }
     }
@@ -441,19 +434,12 @@ public class XHDWalletAPI {
         metadata: SignMetadata,
         derivationType: BIP32DerivationType = BIP32DerivationType.Peikert
     ) throws -> Data {
-        print("🐞 [DEBUG] signData: Starting validation with data size: \(data.count)")
-        print("🐞 [DEBUG] signData: Data hex: \(data.map { String(format: "%02hhx", $0) }.joined())")
-        print("🐞 [DEBUG] signData: Encoding: \(metadata.encoding)")
-        
         let valid = try validateData(data: data, metadata: metadata)
-        print("🐞 [DEBUG] signData: Validation result: \(valid)")
 
         if !valid {
-            print("🐞 [DEBUG] signData: Validation failed - throwing DataValidationException")
             throw DataValidationException(message: "Data is not valid")
         }
 
-        print("🐞 [DEBUG] signData: Validation passed - proceeding with signing")
         let bip44Path: [UInt32] = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
         return try rawSign(bip44Path: bip44Path, message: data, derivationType: derivationType)
     }
