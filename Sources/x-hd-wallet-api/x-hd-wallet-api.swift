@@ -58,25 +58,45 @@ public struct Schema {
     public var jsonSchema: [String: Any]
 
     public init(filePath: String) throws {
+        print("🐞 [DEBUG] Schema init called with filePath: \(filePath)")
         let url = URL(fileURLWithPath: filePath)
         let data = try Data(contentsOf: url)
+        print("🐞 [DEBUG] Schema file loaded, size: \(data.count) bytes")
         let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
 
         guard var jsonSchema = jsonObject as? [String: Any] else {
+            print("🐞 [DEBUG] ❌ Failed to cast JSON to [String: Any]")
             throw NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON schema"])
         }
 
+        print("🐞 [DEBUG] Schema keys: \(jsonSchema.keys.sorted())")
+        
         // Fix the additionalProperties issue - ensure it's a boolean, not an integer
         if let additionalProps = jsonSchema["additionalProperties"] {
+            print("🐞 [DEBUG] Original additionalProperties: \(additionalProps) (type: \(type(of: additionalProps)))")
             if let intValue = additionalProps as? Int {
                 jsonSchema["additionalProperties"] = (intValue != 0)
+                print("🐞 [DEBUG] ✅ Fixed additionalProperties from Int(\(intValue)) to Bool(\(intValue != 0))")
             } else if let stringValue = additionalProps as? String {
-                jsonSchema["additionalProperties"] = (stringValue.lowercased() != "false" && stringValue != "0")
+                let boolValue = (stringValue.lowercased() != "false" && stringValue != "0")
+                jsonSchema["additionalProperties"] = boolValue
+                print("🐞 [DEBUG] ✅ Fixed additionalProperties from String(\"\(stringValue)\") to Bool(\(boolValue))")
+            } else {
+                print("🐞 [DEBUG] ✅ additionalProperties already correct type: \(type(of: additionalProps))")
             }
-            // If it's already a boolean, leave it as is
+        } else {
+            print("🐞 [DEBUG] ⚠️ No additionalProperties found in schema")
+        }
+
+        if let required = jsonSchema["required"] as? [String] {
+            print("🐞 [DEBUG] Required properties count: \(required.count)")
+            print("🐞 [DEBUG] First 5 required: \(Array(required.prefix(5)))")
+        } else {
+            print("🐞 [DEBUG] ⚠️ No required array found in schema")
         }
 
         self.jsonSchema = jsonSchema
+        print("🐞 [DEBUG] ✅ Schema initialized successfully")
     }
 }
 
@@ -378,21 +398,28 @@ public class XHDWalletAPI {
     }
 
     public func validateData(data: Data, metadata: SignMetadata) throws -> Bool {
+        print("🐞 [DEBUG] validateData called with \(data.count) bytes")
+        
         if hasAlgorandTags(data: data) {
+            print("🐞 [DEBUG] ❌ Data has Algorand tags - validation failed")
             return false
         }
+        print("🐞 [DEBUG] ✅ No Algorand tags found")
 
         // Transform encoded data into the "raw" data format
         var rawData: Data
         switch metadata.encoding {
         case .base64:
+            print("🐞 [DEBUG] Processing base64 encoding")
             guard let base64String = String(data: data, encoding: .utf8),
                   let base64Data = Data(base64Encoded: base64String)
             else {
+                print("🐞 [DEBUG] ❌ Base64 decoding failed")
                 return false
             }
             rawData = base64Data
         case .msgpack:
+            print("🐞 [DEBUG] Processing msgpack encoding")
             do {
                 let unpackedValue = try MessagePack.unpack(data).value
                 let swiftObject = messagePackValueToSwift(unpackedValue)
@@ -405,11 +432,15 @@ public class XHDWalletAPI {
                     rawData = try JSONSerialization.data(withJSONObject: swiftObject, options: [])
                 }
             } catch {
+                print("🐞 [DEBUG] ❌ MessagePack decoding failed: \(error)")
                 return false
             }
         case .none:
+            print("🐞 [DEBUG] Using raw data (no encoding)")
             rawData = data
         }
+        
+        print("🐞 [DEBUG] Raw data size: \(rawData.count) bytes")
 
         do {
             // By default, treat data as raw bytes and transform into JSON object with index keys
@@ -417,10 +448,23 @@ public class XHDWalletAPI {
             for (index, byte) in rawData.enumerated() {
                 byteObject[String(index)] = Int(byte)
             }
-
+            
+            print("🐞 [DEBUG] Created JSON object with \(byteObject.keys.count) properties")
+            print("🐞 [DEBUG] Sample JSON object: \(Array(byteObject.prefix(5)))")
+            print("🐞 [DEBUG] Schema keys: \(metadata.schema.jsonSchema.keys)")
+            
             let valid = try JSONSchema.validate(byteObject, schema: metadata.schema.jsonSchema)
+            print("🐞 [DEBUG] JSON Schema validation result: \(valid.valid)")
+            if !valid.valid {
+                if let errors = valid.errors {
+                    print("🐞 [DEBUG] ❌ Validation errors: \(errors)")
+                } else {
+                    print("🐞 [DEBUG] ❌ Validation failed but no error details available")
+                }
+            }
             return valid.valid
         } catch {
+            print("🐞 [DEBUG] ❌ JSON Schema validation threw error: \(error)")
             return false
         }
     }
@@ -434,12 +478,17 @@ public class XHDWalletAPI {
         metadata: SignMetadata,
         derivationType: BIP32DerivationType = BIP32DerivationType.Peikert
     ) throws -> Data {
+        print("🐞 [DEBUG] signData called with \(data.count) bytes")
+        
         let valid = try validateData(data: data, metadata: metadata)
+        print("🐞 [DEBUG] validateData returned: \(valid)")
 
         if !valid {
+            print("🐞 [DEBUG] ❌ Throwing DataValidationException")
             throw DataValidationException(message: "Data is not valid")
         }
 
+        print("🐞 [DEBUG] ✅ Validation passed, proceeding to sign raw data")
         let bip44Path: [UInt32] = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
         return try rawSign(bip44Path: bip44Path, message: data, derivationType: derivationType)
     }
