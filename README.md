@@ -33,37 +33,35 @@ Now you can generate keys using a BIP-44 derivation path:
 let pk = c.keyGen(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0)
 ```
 
-To sign an Algorand transaction, you can use the signAlgoTransaction.
+To sign an Algorand transaction, you can use the sign method.
 
 ```swift
 let prefixEncodedTx = Data(base64Encoded: "VFiJo2FtdM0D6KNmZWXNA+iiZnbOAkeSd6NnZW6sdGVzdG5ldC12MS4womdoxCBIY7UYpLPITsgQ8i1PEIHLD3HwWaesIN7GL39w5Qk6IqJsds4CR5Zfo3JjdsQgYv6DK3rRBUS+gzemcENeUGSuSmbne9eJCXZbRrV2pvOjc25kxCBi/oMretEFRL6DN6ZwQ15QZK5KZud714kJdltGtXam86R0eXBlo3BheQ==")
-let sig = c.signAlgoTransaction(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, prefixEncodedTx: prefixEncodedTx)
+let sig = c.sign(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, message: prefixEncodedTx)
 ```
 
 Where prefixEncodedTx is a transaction that has been compiled with the SDK's transaction builder. The signature returned can be verified against the public key:
 
 ```swift
-let pk = c.keyGen(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0)
+let pk = try c.keyGen(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0)
 let result = c.verifyWithPublicKey(signature: sig, message: prefixEncodedTx, publicKey: pk)
 ```
 
-It is also possible to sign arbitrary data. You need to specify a JSON scehma and encoding type (none, base64, msgpack).
+If you wish to sign arbitrary data, you may do so with `sign()`. However, it is recommended that you use the `validateData()`method, or handle data validation of arbitrary data in some other way. Otherwise, you might run into the problem of signing something malicious.
+
+You need to specify a JSON scehma and encoding type (none, base64, msgpack).
 
 For example (with schema under "schemas/auth.request.json" in the Tests folder):
 
 ```swift
-let schema = Schema("auth.request.json")
-let challengeJSON = """
-    {
-        "0": 28, "1": 103, "2": 26, "3": 222, "4": 7, "5": 86, "6": 55, "7": 95,
-        "8": 197, "9": 179, "10": 249, "11": 252, "12": 232, "13": 252, "14": 176,
-        "15": 39, "16": 112, "17": 131, "18": 52, "19": 63, "20": 212, "21": 58,
-        "22": 226, "23": 89, "24": 64, "25": 94, "26": 23, "27": 91, "28": 128,
-        "29": 143, "30": 123, "31": 27
+    let schema = try Schema(filePath: "auth.request.json")
+    let challengeData = Data((0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) })
+    let valid = try c.validateData(data: challengeData, metadata: SignMetadata(encoding: .none, schema: schema))
+    if !valid {
+        // throw error or handle invalid data
     }
-    """
-let sig = c.signData(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0, data: data, metadata: SignMetadata(encoding: Encoding.none, schema: schema))
-let result = c.verifyWithPublicKey(signature: sig, message: Data(challengeJSON.utf8), publicKey: pk)
+    let sig = try c.sign(context: .Address, account: 0, change: 0, keyIndex: 0, message: challengeData)
+    let result = c.verifyWithPublicKey(signature: sig, message: challengeData, publicKey: pk)
 ```
 
 or using base64:

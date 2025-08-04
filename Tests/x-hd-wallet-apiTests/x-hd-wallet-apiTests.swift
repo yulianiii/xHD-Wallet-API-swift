@@ -43,6 +43,57 @@ func createMockSchema(jsonSchema: [String: Any]) throws -> Schema {
 }
 
 final class XHDWalletAPITests: XCTestCase {
+    func testSignWithValidateData_NoEncoding() throws {
+        let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        let wallet = XHDWalletAPI(seed: seed)!
+        let challenge = Data((0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) })
+        let authSchema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")
+        let metadata = SignMetadata(encoding: .none, schema: authSchema)
+        let valid = try wallet.validateData(data: challenge, metadata: metadata)
+        XCTAssertTrue(valid)
+        let bip44Path = wallet.getBIP44PathFromContext(context: .Address, account: 0, change: 0, keyIndex: 0)
+        let signature = try wallet.sign(bip44Path: bip44Path, message: challenge, derivationType: .Peikert)
+        XCTAssertEqual(signature.count, 64)
+        let publicKey = try wallet.keyGen(context: .Address, account: 0, change: 0, keyIndex: 0)
+        let isValid = wallet.verifyWithPublicKey(signature: signature, message: challenge, publicKey: publicKey)
+        XCTAssertTrue(isValid)
+    }
+
+    func testSignWithValidateData_Base64() throws {
+        let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        let wallet = XHDWalletAPI(seed: seed)!
+        let challenge = Data((0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) })
+        let authSchema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")
+        let metadata = SignMetadata(encoding: .base64, schema: authSchema)
+        let base64Challenge = challenge.base64EncodedString()
+        let encoded = base64Challenge.data(using: .utf8)!
+        let valid = try wallet.validateData(data: encoded, metadata: metadata)
+        XCTAssertTrue(valid)
+        let bip44Path = wallet.getBIP44PathFromContext(context: .Address, account: 0, change: 0, keyIndex: 0)
+        let signature = try wallet.sign(bip44Path: bip44Path, message: encoded, derivationType: .Peikert)
+        XCTAssertEqual(signature.count, 64)
+        let publicKey = try wallet.keyGen(context: .Address, account: 0, change: 0, keyIndex: 0)
+        let isValid = wallet.verifyWithPublicKey(signature: signature, message: encoded, publicKey: publicKey)
+        XCTAssertTrue(isValid)
+    }
+
+    func testSignWithValidateData_Msgpack() throws {
+        let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        let wallet = XHDWalletAPI(seed: seed)!
+        let challenge = Data((0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) })
+        let authSchema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")
+        let metadata = SignMetadata(encoding: .msgpack, schema: authSchema)
+        let encoded = MessagePack.pack(MessagePackValue.binary(challenge))
+        let valid = try wallet.validateData(data: encoded, metadata: metadata)
+        XCTAssertTrue(valid)
+        let bip44Path = wallet.getBIP44PathFromContext(context: .Address, account: 0, change: 0, keyIndex: 0)
+        let signature = try wallet.sign(bip44Path: bip44Path, message: encoded, derivationType: .Peikert)
+        XCTAssertEqual(signature.count, 64)
+        let publicKey = try wallet.keyGen(context: .Address, account: 0, change: 0, keyIndex: 0)
+        let isValid = wallet.verifyWithPublicKey(signature: signature, message: encoded, publicKey: publicKey)
+        XCTAssertTrue(isValid)
+    }
+
     var c: XHDWalletAPI?
 
     override func setUpWithError() throws {
@@ -76,7 +127,7 @@ final class XHDWalletAPITests: XCTestCase {
             "hotel park shrug economy group holiday merit thank plunge protect lemon test kit report pig roof gasp weekend parade labor candy praise lawsuit human",
             "embrace acoustic define work teach bitter kiss mouse lamp melody mobile gasp sleep jazz kite next parrot trigger limb eye push oppose shiver certain",
             "duty rice trust section few more seven course sister curve destroy common list dad whip enhance empty asthma icon grace logic remove cherry black",
-            "deny aunt maple dream humor lucky cluster beauty world fat age shock note list because decorate frown saddle buddy village heavy air win liquid",
+            "deny aunt maple dream humor lucky cluster beauty world fat age shock note list because decorate frown saddle buddy village heavy air win liquid"
         ]
 
         for seed in seeds {
@@ -160,7 +211,7 @@ final class XHDWalletAPITests: XCTestCase {
                 Data([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]),
                 BIP32DerivationType.Khovratovich,
                 Data([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00])
-            ),
+            )
         ]
 
         for (zl, g, expected) in testCases {
@@ -336,7 +387,7 @@ final class XHDWalletAPITests: XCTestCase {
         }
 
         var derivationPath: [UInt32] = [
-            c!.harden(44), c!.harden(283), c!.harden(0), 0, 0,
+            c!.harden(44), c!.harden(283), c!.harden(0), 0, 0
         ] + Array(repeating: 0, count: 19)
         let derivationType = BIP32DerivationType.Peikert
 
@@ -389,13 +440,26 @@ final class XHDWalletAPITests: XCTestCase {
             // derive key m'/44'/0'/1'/0/2
             ((KeyContext.Identity, 1, 0, 2), Data([70, 149, 142, 118, 219, 21, 21, 127, 64, 18, 39, 248, 172, 189, 183, 9, 36, 93, 202, 5, 85, 200, 232, 95, 86, 176, 210, 5, 46, 131, 77, 6])),
             // derive key m'/44'/0'/2'/0/1
-            ((KeyContext.Identity, 2, 0, 1), Data([237, 177, 15, 255, 36, 164, 116, 93, 245, 47, 26, 10, 177, 174, 113, 179, 117, 45, 1, 156, 140, 36, 55, 212, 106, 184, 200, 230, 52, 167, 76, 212])),
+            ((KeyContext.Identity, 2, 0, 1), Data([237, 177, 15, 255, 36, 164, 116, 93, 245, 47, 26, 10, 177, 174, 113, 179, 117, 45, 1, 156, 140, 36, 55, 212, 106, 184, 200, 230, 52, 167, 76, 212]))
         ]
 
         for (input, expected) in testVectors {
             let pk = try (c?.keyGen(context: input.0, account: input.1, change: input.2, keyIndex: input.3, derivationType: BIP32DerivationType.Khovratovich))!
             XCTAssertEqual(pk, expected)
         }
+    }
+
+    func testVerifyAlgoTxOld() throws {
+        // this transaction wes successfully submitted to the network
+        // https://testnet.explorer.perawallet.app/tx/UJG3NVCSCW5A63KPV35BPAABLXMXTTEM2CVUKNS4EML3H3EYGMCQ/
+        let prefixEncodedTx = Data(base64Encoded: "VFiJo2FtdM0D6KNmZWXNA+iiZnbOAkeSd6NnZW6sdGVzdG5ldC12MS4womdoxCBIY7UYpLPITsgQ8i1PEIHLD3HwWaesIN7GL39w5Qk6IqJsds4CR5Zfo3JjdsQgYv6DK3rRBUS+gzemcENeUGSuSmbne9eJCXZbRrV2pvOjc25kxCBi/oMretEFRL6DN6ZwQ15QZK5KZud714kJdltGtXam86R0eXBlo3BheQ==")
+
+        let bip44Path = (KeyContext.Address, UInt32(0), UInt32(0), UInt32(0))
+        guard let pk = try c?.keyGen(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, derivationType: BIP32DerivationType.Khovratovich) else { return }
+        guard let sig = try c?.signAlgoTransaction(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, prefixEncodedTx: prefixEncodedTx!, derivationType: BIP32DerivationType.Khovratovich) else { return }
+
+        XCTAssertEqual(c?.verifyWithPublicKey(signature: sig, message: prefixEncodedTx!, publicKey: pk), true)
+        XCTAssertEqual(try TestUtils.encodeAddress(bytes: pk), "ML7IGK322ECUJPUDG6THAQ26KBSK4STG4555PCIJOZNUNNLWU3Z3ZFXITA")
     }
 
     func testVerifyAlgoTx() throws {
@@ -405,7 +469,7 @@ final class XHDWalletAPITests: XCTestCase {
 
         let bip44Path = (KeyContext.Address, UInt32(0), UInt32(0), UInt32(0))
         guard let pk = try c?.keyGen(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, derivationType: BIP32DerivationType.Khovratovich) else { return }
-        guard let sig = try c?.signAlgoTransaction(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, prefixEncodedTx: prefixEncodedTx!, derivationType: BIP32DerivationType.Khovratovich) else { return }
+        guard let sig = try c?.sign(context: bip44Path.0, account: bip44Path.1, change: bip44Path.2, keyIndex: bip44Path.3, message: prefixEncodedTx!, derivationType: BIP32DerivationType.Khovratovich) else { return }
 
         XCTAssertEqual(c?.verifyWithPublicKey(signature: sig, message: prefixEncodedTx!, publicKey: pk), true)
         XCTAssertEqual(try TestUtils.encodeAddress(bytes: pk), "ML7IGK322ECUJPUDG6THAQ26KBSK4STG4555PCIJOZNUNNLWU3Z3ZFXITA")
@@ -463,7 +527,7 @@ final class XHDWalletAPITests: XCTestCase {
             TX
             {"text":"Hello, World!"}
             """,
-            "VFiJo2FtdM0D6KNmZWXNA+iiZnbOAkeSd6NnZW6sdGVzdG5ldC12MS4womdoxCBIY7UYpLPITsgQ8i1PEIHLD3HwWaesIN7GL39w5Qk6IqJsds4CR5Zfo3JjdsQgYv6DK3rRBUS+gzemcENeUGSuSmbne9eJCXZbRrV2pvOjc25kxCBi/oMretEFRL6DN6ZwQ15QZK5KZud714kJdltGtXam86R0eXBlo3BheQ==", // base64
+            "VFiJo2FtdM0D6KNmZWXNA+iiZnbOAkeSd6NnZW6sdGVzdG5ldC12MS4womdoxCBIY7UYpLPITsgQ8i1PEIHLD3HwWaesIN7GL39w5Qk6IqJsds4CR5Zfo3JjdsQgYv6DK3rRBUS+gzemcENeUGSuSmbne9eJCXZbRrV2pvOjc25kxCBi/oMretEFRL6DN6ZwQ15QZK5KZud714kJdltGtXam86R0eXBlo3BheQ==" // base64
             ]
 
         let resultMX = c?.hasAlgorandTags(data: Data(msgsDoesHave[0].utf8))
@@ -484,7 +548,7 @@ final class XHDWalletAPITests: XCTestCase {
             ["""
             {"text":"Hello, World!"}
             """,
-            "eyJ0ZXh0IjoiSGVsbG8sIFdvcmxkISJ9", // base64
+            "eyJ0ZXh0IjoiSGVsbG8sIFdvcmxkISJ9" // base64
             ]
 
         let resultMXf = c?.hasAlgorandTags(data: Data(msgsDoesNotHave[0].utf8))
@@ -497,7 +561,7 @@ final class XHDWalletAPITests: XCTestCase {
         XCTAssertFalse(resultMXMsgPf!)
     }
 
-    func testSignAuthenticationChallenge32BytesBase64() throws {
+    func testSignAuthenticationChallenge32BytesBase64Old() throws {
         let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
         let wallet = XHDWalletAPI(seed: seed)!
 
@@ -539,7 +603,7 @@ final class XHDWalletAPITests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
-    func testSignAuthenticationChallenge32BytesMsgpack() throws {
+    func testSignAuthenticationChallenge32BytesMsgpackOld() throws {
         let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
         let wallet = XHDWalletAPI(seed: seed)!
 
@@ -580,7 +644,7 @@ final class XHDWalletAPITests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
-    func testSignAuthenticationChallenge32BytesNoEncoding() throws {
+    func testSignAuthenticationChallenge32BytesNoEncodingOld() throws {
         let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
         let wallet = XHDWalletAPI(seed: seed)!
 
@@ -618,6 +682,133 @@ final class XHDWalletAPITests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
+    func testSignAuthenticationChallenge32BytesBase64() throws {
+        let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        let wallet = XHDWalletAPI(seed: seed)!
+
+        // Generate 32 random bytes for authentication challenge
+        let challenge = Data((0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) })
+
+        // Read auth schema file for authentication. 32 bytes challenge to sign
+        let authSchema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")
+        let metadata = SignMetadata(encoding: .base64, schema: authSchema)
+
+        // Encode challenge as base64
+        let base64Challenge = challenge.base64EncodedString()
+        let encoded = base64Challenge.data(using: .utf8)!
+
+        let valid = try wallet.validateData(data: encoded, metadata: metadata)
+        XCTAssertTrue(valid)
+
+        let signature = try wallet.sign(
+            context: .Address,
+            account: 0,
+            change: 0,
+            keyIndex: 0,
+            message: encoded
+        )
+
+        XCTAssertEqual(signature.count, 64)
+
+        let publicKey = try wallet.keyGen(
+            context: .Address,
+            account: 0,
+            change: 0,
+            keyIndex: 0
+        )
+
+        let isValid = wallet.verifyWithPublicKey(
+            signature: signature,
+            message: encoded,
+            publicKey: publicKey
+        )
+
+        XCTAssertTrue(isValid)
+    }
+
+    func testSignAuthenticationChallenge32BytesMsgpack() throws {
+        let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        let wallet = XHDWalletAPI(seed: seed)!
+
+        // Generate 32 random bytes for authentication challenge
+        let challenge = Data((0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) })
+
+        // Read auth schema file for authentication. 32 bytes challenge to sign
+        let authSchema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")
+        let metadata = SignMetadata(encoding: .msgpack, schema: authSchema)
+
+        // Encode challenge as msgpack
+        let encoded = MessagePack.pack(MessagePackValue.binary(challenge))
+
+        let valid = try wallet.validateData(data: encoded, metadata: metadata)
+        XCTAssertTrue(valid)
+
+        let signature = try wallet.sign(
+            context: .Address,
+            account: 0,
+            change: 0,
+            keyIndex: 0,
+            message: encoded
+        )
+
+        XCTAssertEqual(signature.count, 64)
+
+        let publicKey = try wallet.keyGen(
+            context: .Address,
+            account: 0,
+            change: 0,
+            keyIndex: 0
+        )
+
+        let isValid = wallet.verifyWithPublicKey(
+            signature: signature,
+            message: encoded,
+            publicKey: publicKey
+        )
+
+        XCTAssertTrue(isValid)
+    }
+
+    func testSignAuthenticationChallenge32BytesNoEncoding() throws {
+        let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        let wallet = XHDWalletAPI(seed: seed)!
+
+        // Generate 32 random bytes for authentication challenge
+        let challenge = Data((0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) })
+
+        // Read auth schema file for authentication. 32 bytes challenge to sign
+        let authSchema = try Schema(filePath: "Tests/x-hd-wallet-apiTests/schemas/auth.request.json")
+        let metadata = SignMetadata(encoding: .none, schema: authSchema)
+
+        let valid = try wallet.validateData(data: challenge, metadata: metadata)
+        XCTAssertTrue(valid)
+
+        let signature = try wallet.sign(
+            context: .Address,
+            account: 0,
+            change: 0,
+            keyIndex: 0,
+            message: challenge
+        )
+
+        XCTAssertEqual(signature.count, 64)
+
+        let publicKey = try wallet.keyGen(
+            context: .Address,
+            account: 0,
+            change: 0,
+            keyIndex: 0
+        )
+
+        let isValid = wallet.verifyWithPublicKey(
+            signature: signature,
+            message: challenge,
+            publicKey: publicKey
+        )
+
+        XCTAssertTrue(isValid)
+    }
+
     func testSignArbitraryMessageBase64() throws {
         let seed = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
         let wallet = XHDWalletAPI(seed: seed)!
@@ -631,8 +822,8 @@ final class XHDWalletAPITests: XCTestCase {
         let jsonSchema: [String: Any] = [
             "type": "object",
             "properties": [
-                "letter": ["type": "string"],
-            ],
+                "letter": ["type": "string"]
+            ]
         ]
 
         let schema = try createMockSchema(jsonSchema: jsonSchema)
@@ -670,7 +861,7 @@ final class XHDWalletAPITests: XCTestCase {
         let wallet = XHDWalletAPI(seed: seed)!
 
         let messagePackValue = MessagePackValue.map([
-            MessagePackValue.string("letter"): MessagePackValue.string("Hello World"),
+            MessagePackValue.string("letter"): MessagePackValue.string("Hello World")
         ])
         let encoded = MessagePack.pack(messagePackValue)
 
@@ -678,8 +869,8 @@ final class XHDWalletAPITests: XCTestCase {
         let jsonSchema: [String: Any] = [
             "type": "object",
             "properties": [
-                "letter": ["type": "string"],
-            ],
+                "letter": ["type": "string"]
+            ]
         ]
 
         let schema = try createMockSchema(jsonSchema: jsonSchema)
@@ -723,7 +914,7 @@ final class XHDWalletAPITests: XCTestCase {
 
         // Wrong schema - expecting string but sending object
         let jsonSchema: [String: Any] = [
-            "type": "string",
+            "type": "string"
         ]
 
         let schema = try createMockSchema(jsonSchema: jsonSchema)
@@ -744,13 +935,13 @@ final class XHDWalletAPITests: XCTestCase {
         let wallet = XHDWalletAPI(seed: seed)!
 
         let messagePackValue = MessagePackValue.map([
-            MessagePackValue.string("letter"): MessagePackValue.string("Hello World"),
+            MessagePackValue.string("letter"): MessagePackValue.string("Hello World")
         ])
         let encoded = MessagePack.pack(messagePackValue)
 
         // Wrong schema - expecting string but sending object
         let jsonSchema: [String: Any] = [
-            "type": "string",
+            "type": "string"
         ]
 
         let schema = try createMockSchema(jsonSchema: jsonSchema)
