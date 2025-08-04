@@ -62,10 +62,18 @@ public struct Schema {
         let data = try Data(contentsOf: url)
         let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
 
-        guard let jsonSchema = jsonObject as? [String: Any] else {
+        guard var jsonSchema = jsonObject as? [String: Any] else {
             throw NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON schema"])
         }
 
+        if let additionalProps = jsonSchema["additionalProperties"] {
+            if let intValue = additionalProps as? Int {
+                jsonSchema["additionalProperties"] = (intValue != 0)
+            } else if let stringValue = additionalProps as? String {
+                let boolValue = (stringValue.lowercased() != "false" && stringValue != "0")
+                jsonSchema["additionalProperties"] = boolValue
+            }
+        }
         self.jsonSchema = jsonSchema
     }
 }
@@ -209,7 +217,6 @@ public class XHDWalletAPI {
         // Step 2: Compute child public key
         let left = BigUInt(Data(zL.reversed())) * BigUInt(8)
         let leftData = Data(left.serialize().reversed())
-
         let p = SodiumHelper.scalarMultEd25519BaseNoClamp(leftData)
 
         // Step 3: Compute child chain code
@@ -316,7 +323,7 @@ public class XHDWalletAPI {
         return try deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: false, derivationType: derivationType).prefix(32)
     }
 
-    private func rawSign(bip44Path: [UInt32], message: Data, derivationType: BIP32DerivationType) throws -> Data {
+    public func sign(bip44Path: [UInt32], message: Data, derivationType: BIP32DerivationType) throws -> Data {
         let rootKey: Data = fromSeed(seed)
         let raw: Data = try deriveKey(rootKey: rootKey, bip44Path: bip44Path, isPrivate: true, derivationType: derivationType)
 
@@ -341,6 +348,21 @@ public class XHDWalletAPI {
         return R + S
     }
 
+    /// Overloaded sign method: accepts context, account, change, keyIndex, message, and derivationType
+    /// Internally constructs the BIP44 path and calls the main sign method
+    public func sign(
+        context: KeyContext,
+        account: UInt32,
+        change: UInt32,
+        keyIndex: UInt32,
+        message: Data,
+        derivationType: BIP32DerivationType = .Peikert
+    ) throws -> Data {
+        let bip44Path = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
+        return try sign(bip44Path: bip44Path, message: message, derivationType: derivationType)
+    }
+
+    @available(*, deprecated, message: "Use sign() directly, this method will be removed in future releases.")
     public func signAlgoTransaction(
         context: KeyContext,
         account: UInt32,
@@ -350,7 +372,7 @@ public class XHDWalletAPI {
         derivationType: BIP32DerivationType = BIP32DerivationType.Peikert
     ) throws -> Data {
         let bip44Path: [UInt32] = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
-        return try rawSign(bip44Path: bip44Path, message: prefixEncodedTx, derivationType: derivationType)
+        return try sign(bip44Path: bip44Path, message: prefixEncodedTx, derivationType: derivationType)
     }
 
     public func verifyWithPublicKey(signature: Data, message: Data, publicKey: Data) -> Bool {
@@ -384,7 +406,16 @@ public class XHDWalletAPI {
             rawData = base64Data
         case .msgpack:
             do {
-                rawData = try JSONSerialization.data(withJSONObject: messagePackValueToSwift(MessagePack.unpack(data).value), options: [])
+                let unpackedValue = try MessagePack.unpack(data).value
+                let swiftObject = messagePackValueToSwift(unpackedValue)
+
+                // If the unpacked value is binary data, treat it as raw bytes
+                if let binaryData = swiftObject as? Data {
+                    rawData = binaryData
+                } else {
+                    // Otherwise, serialize back to JSON
+                    rawData = try JSONSerialization.data(withJSONObject: swiftObject, options: [])
+                }
             } catch {
                 return false
             }
@@ -393,17 +424,23 @@ public class XHDWalletAPI {
         }
 
         do {
-            if let jsonObject = try JSONSerialization.jsonObject(with: rawData, options: []) as? [String: Any] {
-                let valid = try JSONSchema.validate(jsonObject, schema: metadata.schema.jsonSchema)
-                return valid.valid
-            } else {
+            // By default, treat data as raw bytes and transform into JSON object with index keys
+            var byteObject: [String: Any] = [:]
+            for (index, byte) in rawData.enumerated() {
+                byteObject[String(index)] = Int(byte)
+            }
+            // Validate the dictionary directly with JSONSchema.validate
+            let valid = try JSONSchema.validate(byteObject, schema: metadata.schema.jsonSchema)
+            if !valid.valid {
                 return false
             }
+            return valid.valid
         } catch {
             return false
         }
     }
 
+    @available(*, deprecated, message: "Use validateData() and sign() directly, this method will be removed in future releases.")
     public func signData(
         context: KeyContext,
         account: UInt32,
@@ -420,7 +457,7 @@ public class XHDWalletAPI {
         }
 
         let bip44Path: [UInt32] = getBIP44PathFromContext(context: context, account: account, change: change, keyIndex: keyIndex)
-        return try rawSign(bip44Path: bip44Path, message: data, derivationType: derivationType)
+        return try sign(bip44Path: bip44Path, message: data, derivationType: derivationType)
     }
 
     // Function to convert MessagePackValue to Swift types.
