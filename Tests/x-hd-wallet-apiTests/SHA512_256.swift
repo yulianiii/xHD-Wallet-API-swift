@@ -52,7 +52,8 @@ func truncateResult<T>(h: [T]) -> ArraySlice<T> {
 
 enum SHA2 {
     private static func preprocessMessage(message: [UInt8],
-                                          messageLengthBits: Int) -> [UInt8] {
+                                          messageLengthBits: Int) -> [UInt8]
+    {
         var preprocessedMessage = message
         // Pre-processing: adding a single 1 bit
         // Notice: the input bytes are considered as bits strings,

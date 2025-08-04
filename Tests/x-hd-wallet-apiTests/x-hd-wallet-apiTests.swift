@@ -127,7 +127,7 @@ final class XHDWalletAPITests: XCTestCase {
             "hotel park shrug economy group holiday merit thank plunge protect lemon test kit report pig roof gasp weekend parade labor candy praise lawsuit human",
             "embrace acoustic define work teach bitter kiss mouse lamp melody mobile gasp sleep jazz kite next parrot trigger limb eye push oppose shiver certain",
             "duty rice trust section few more seven course sister curve destroy common list dad whip enhance empty asthma icon grace logic remove cherry black",
-            "deny aunt maple dream humor lucky cluster beauty world fat age shock note list because decorate frown saddle buddy village heavy air win liquid"
+            "deny aunt maple dream humor lucky cluster beauty world fat age shock note list because decorate frown saddle buddy village heavy air win liquid",
         ]
 
         for seed in seeds {
@@ -211,7 +211,7 @@ final class XHDWalletAPITests: XCTestCase {
                 Data([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]),
                 BIP32DerivationType.Khovratovich,
                 Data([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00])
-            )
+            ),
         ]
 
         for (zl, g, expected) in testCases {
@@ -387,7 +387,7 @@ final class XHDWalletAPITests: XCTestCase {
         }
 
         var derivationPath: [UInt32] = [
-            c!.harden(44), c!.harden(283), c!.harden(0), 0, 0
+            c!.harden(44), c!.harden(283), c!.harden(0), 0, 0,
         ] + Array(repeating: 0, count: 19)
         let derivationType = BIP32DerivationType.Peikert
 
@@ -440,7 +440,7 @@ final class XHDWalletAPITests: XCTestCase {
             // derive key m'/44'/0'/1'/0/2
             ((KeyContext.Identity, 1, 0, 2), Data([70, 149, 142, 118, 219, 21, 21, 127, 64, 18, 39, 248, 172, 189, 183, 9, 36, 93, 202, 5, 85, 200, 232, 95, 86, 176, 210, 5, 46, 131, 77, 6])),
             // derive key m'/44'/0'/2'/0/1
-            ((KeyContext.Identity, 2, 0, 1), Data([237, 177, 15, 255, 36, 164, 116, 93, 245, 47, 26, 10, 177, 174, 113, 179, 117, 45, 1, 156, 140, 36, 55, 212, 106, 184, 200, 230, 52, 167, 76, 212]))
+            ((KeyContext.Identity, 2, 0, 1), Data([237, 177, 15, 255, 36, 164, 116, 93, 245, 47, 26, 10, 177, 174, 113, 179, 117, 45, 1, 156, 140, 36, 55, 212, 106, 184, 200, 230, 52, 167, 76, 212])),
         ]
 
         for (input, expected) in testVectors {
@@ -527,7 +527,7 @@ final class XHDWalletAPITests: XCTestCase {
             TX
             {"text":"Hello, World!"}
             """,
-            "VFiJo2FtdM0D6KNmZWXNA+iiZnbOAkeSd6NnZW6sdGVzdG5ldC12MS4womdoxCBIY7UYpLPITsgQ8i1PEIHLD3HwWaesIN7GL39w5Qk6IqJsds4CR5Zfo3JjdsQgYv6DK3rRBUS+gzemcENeUGSuSmbne9eJCXZbRrV2pvOjc25kxCBi/oMretEFRL6DN6ZwQ15QZK5KZud714kJdltGtXam86R0eXBlo3BheQ==" // base64
+            "VFiJo2FtdM0D6KNmZWXNA+iiZnbOAkeSd6NnZW6sdGVzdG5ldC12MS4womdoxCBIY7UYpLPITsgQ8i1PEIHLD3HwWaesIN7GL39w5Qk6IqJsds4CR5Zfo3JjdsQgYv6DK3rRBUS+gzemcENeUGSuSmbne9eJCXZbRrV2pvOjc25kxCBi/oMretEFRL6DN6ZwQ15QZK5KZud714kJdltGtXam86R0eXBlo3BheQ==", // base64
             ]
 
         let resultMX = c?.hasAlgorandTags(data: Data(msgsDoesHave[0].utf8))
@@ -548,7 +548,7 @@ final class XHDWalletAPITests: XCTestCase {
             ["""
             {"text":"Hello, World!"}
             """,
-            "eyJ0ZXh0IjoiSGVsbG8sIFdvcmxkISJ9" // base64
+            "eyJ0ZXh0IjoiSGVsbG8sIFdvcmxkISJ9", // base64
             ]
 
         let resultMXf = c?.hasAlgorandTags(data: Data(msgsDoesNotHave[0].utf8))
@@ -822,8 +822,8 @@ final class XHDWalletAPITests: XCTestCase {
         let jsonSchema: [String: Any] = [
             "type": "object",
             "properties": [
-                "letter": ["type": "string"]
-            ]
+                "letter": ["type": "string"],
+            ],
         ]
 
         let schema = try createMockSchema(jsonSchema: jsonSchema)
@@ -861,7 +861,7 @@ final class XHDWalletAPITests: XCTestCase {
         let wallet = XHDWalletAPI(seed: seed)!
 
         let messagePackValue = MessagePackValue.map([
-            MessagePackValue.string("letter"): MessagePackValue.string("Hello World")
+            MessagePackValue.string("letter"): MessagePackValue.string("Hello World"),
         ])
         let encoded = MessagePack.pack(messagePackValue)
 
@@ -869,8 +869,8 @@ final class XHDWalletAPITests: XCTestCase {
         let jsonSchema: [String: Any] = [
             "type": "object",
             "properties": [
-                "letter": ["type": "string"]
-            ]
+                "letter": ["type": "string"],
+            ],
         ]
 
         let schema = try createMockSchema(jsonSchema: jsonSchema)
@@ -914,7 +914,7 @@ final class XHDWalletAPITests: XCTestCase {
 
         // Wrong schema - expecting string but sending object
         let jsonSchema: [String: Any] = [
-            "type": "string"
+            "type": "string",
         ]
 
         let schema = try createMockSchema(jsonSchema: jsonSchema)
@@ -935,13 +935,13 @@ final class XHDWalletAPITests: XCTestCase {
         let wallet = XHDWalletAPI(seed: seed)!
 
         let messagePackValue = MessagePackValue.map([
-            MessagePackValue.string("letter"): MessagePackValue.string("Hello World")
+            MessagePackValue.string("letter"): MessagePackValue.string("Hello World"),
         ])
         let encoded = MessagePack.pack(messagePackValue)
 
         // Wrong schema - expecting string but sending object
         let jsonSchema: [String: Any] = [
-            "type": "string"
+            "type": "string",
         ]
 
         let schema = try createMockSchema(jsonSchema: jsonSchema)
